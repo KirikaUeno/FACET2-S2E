@@ -1,5 +1,6 @@
 
-import UTILITY_QPAD_PICMI as picmi
+import importlib
+from . import UTILITY_QPAD_PICMI as picmi
 import numpy as np
 from pmd_beamphysics import ParticleGroup
 import h5py
@@ -51,9 +52,14 @@ class QPAD_sim:
 
     """
     def __init__(self, n0 = 1e17 * 1e6):
-        self.n0 = n0 
+        self.n0 = n0
         self.wp = np.sqrt(cst.e**2 * self.n0/(cst.epsilon_0 * cst.m_e))
         self.kp = self.wp/cst.c
+        self.P = None
+        self.layouts, self.species_list = [],[]
+        self.simulation, self.solver, self.grid = None,None,None
+        self.if_beam, self.part_diags, self.field_diags = [],[],[]
+        importlib.reload(picmi)
 
     """
     Initialize Grid Paramters
@@ -1329,11 +1335,11 @@ def plotInteractiveQPADFigure(sim_fold = '',
     return ui, update
 
 
-def plotPlasmaProfile(defaultsFile, figsize = (6,5)):
+def plotPlasmaProfile(defaultsFile, filepath, figsize = (6,5)):
     set_matplotlib_formats('retina')
     matplotlib.rcParams.update({'figure.dpi': 200, 'savefig.dpi': 300})
 
-    with open(defaultsFile, 'r') as file:
+    with open(filepath + '/' + defaultsFile, 'r') as file:
         defaults = yaml.safe_load(file)
         
     plasma_settings = defaults['plasma']

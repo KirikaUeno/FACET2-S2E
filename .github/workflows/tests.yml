@@ -1,0 +1,45 @@
+name: Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        lfs: true
+    
+    - name: Set up Conda
+      uses: conda-incubator/setup-miniconda@v3
+      with:
+        environment-file: bmadQPADCondaEnv_dev.yml
+        activate-environment: bmad-qpad-dev
+    
+    - name: Install package
+      run: |
+        pip install -e .
+      shell: bash -l {0}
+    
+    - name: Run fast tests
+      run: |
+        pytest tests/ -m "not slow" -v
+      shell: bash -l {0}
+    
+    - name: Run all tests (including slow)
+      run: |
+        pytest tests/ -v
+      if: github.event_name == 'pull_request'
+      shell: bash -l {0}
+    
+    - name: Upload coverage reports
+      uses: codecov/codecov-action@v3
+      if: always()
+      with:
+        file: ./coverage.xml
+        fail_ci_if_error: false
