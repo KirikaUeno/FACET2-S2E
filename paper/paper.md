@@ -1,5 +1,5 @@
 ---
-title: 'FACET-S2E: Start-to-end simulations of the FACET-II beamline'
+title: 'FACET2-S2E: Start-to-end simulations of the FACET-II beamline'
 tags:
   - accelerator physics
   - plasma physics
