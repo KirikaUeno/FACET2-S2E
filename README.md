@@ -118,6 +118,7 @@ other_configs/           Atypical configurations including misalignment and stee
 qpad/                    QPAD configuration files
 setLattice_configs/      Reference configurations
 src/FACET2_S2E/          Main package source code with utility functions
+src/Experimental_functions/  FACET-II DAQ data analysis (third-party, see Acknowledgements)
 tests/                   Automated test suite (unit, integration, system tests)
   ├── unit/              Unit tests for core functions
   ├── integration/       Integration tests calling real functions
@@ -409,6 +410,16 @@ The target destination should have >2 GB of space available before cloning this 
 
 Most development work happens inside the notebooks.  The notebooks in the `ARCHIVE` folder are previous investigations and may serve as additional examples.
 
+
+## Acknowledgements
+
+`src/Experimental_functions/` is a partial, locally-modified copy of
+[standaloneFACETScripts](https://github.com/rariniello/standaloneFACETScripts) by
+Robert Ariniello, used here to read FACET-II DAQ datasets. It is redistributed
+under its BSD-3-Clause license, reproduced in
+`src/Experimental_functions/LICENSE`. The local modifications are itemized in
+`src/Experimental_functions/PROVENANCE.md`; bugs in those files should be
+reported here rather than upstream.
 
 ## Support
 
