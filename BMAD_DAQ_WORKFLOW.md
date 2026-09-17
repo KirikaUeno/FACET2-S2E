@@ -28,6 +28,7 @@ Examples of every option are in [`examples/Kladov_BMAD_tutorial.ipynb`](examples
    GIT_LFS_SKIP_SMUDGE=1 git clone https://github.com/slaclab/FACET2-S2E.git
    cd FACET2-S2E
    ```
+   > Until [PR #10](https://github.com/slaclab/FACET2-S2E/pull/10) is merged, the features described here exist only in that PR. To get them, run `git fetch origin pull/10/head:pr-10 && git checkout pr-10` after the commands above.
 
 4. **Create the conda environment.** Give the location explicitly, because the `prefix:` line in the yml points to another user's directory:
    ```bash
