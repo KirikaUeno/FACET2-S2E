@@ -105,6 +105,7 @@ from .simulationFunctions import (
     get_tao_from_experiment,
     set_beam,
     run_initialized_sim,
+    run_initialized_sim_edit_lattice_energy_for_dipoles,
     run_initialized_sim_edit_bunch_energy,
     ### Correct the lattice to match the desired Pz
     tune_to_P0Cs,
@@ -284,6 +285,7 @@ __all__ = [
     'set_beam',
     'run_initialized_sim',
     'run_initialized_sim_edit_bunch_energy',
+    'run_initialized_sim_edit_lattice_energy_for_dipoles',
     ### Correct the lattice to match the desired Pz
     'tune_to_P0Cs',
     'edit_energy_based_on_beam_inj',

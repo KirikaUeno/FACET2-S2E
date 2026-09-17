@@ -11,7 +11,6 @@ import matplotlib.pyplot as plt
 #import mplstyle
 from matplotlib.ticker import AutoMinorLocator
 from matplotlib.gridspec import GridSpec, GridSpecFromSubplotSpec
-from Experimental_functions import *
 
 # from .UTILITY_quickstart import (
 #     initializeTao,
@@ -19,7 +18,12 @@ from Experimental_functions import *
 #     getBeamAtElement,
 # )
 
-from .UTILITY_quickstart import *
+import numpy as np
+import pmd_beamphysics.labels
+import pmd_beamphysics.units
+from pmd_beamphysics import ParticleGroup
+
+from .UTILITY_quickstart import getBeamAtElement
 
 from .UTILITY_linacPhaseAndAmplitude import matchStringWrapper
 
@@ -79,6 +83,9 @@ def plotMod(particle_group, key1='t', key2='p',
     CMAP0.set_under(CMAP0(0))  # set under-color to the lowest colormap color
     CMAP1 = copy(plt.get_cmap('plasma'))
 
+    # Suppress display while the sub-axes are composed; restored before returning, otherwise
+    # every later figure in the session silently stops being shown.
+    was_interactive = plt.isinteractive()
     plt.ioff()
     
     if not bins:
@@ -188,6 +195,9 @@ def plotMod(particle_group, key1='t', key2='p',
     if ylim:
         ax_joint.set_ylim(ymin/f2, ymax/f2)     
         ax_marg_y.set_ylim(ymin/f2, ymax/f2)
+
+    if was_interactive:
+        plt.ion()
     
     return ax_joint, ax_marg_x, ax_marg_y
 
@@ -520,7 +530,12 @@ def make_a_plot(x, y, errs=None, aspect_ratio=0.67, label=r"$\sin(x)$", x_label=
         
     # Tight layout for journal export
     fig.tight_layout(pad=0.3)
-    
+
+    # Show explicitly: with interactive mode off (plotMod/print_result turn it off) the inline
+    # backend never queues the figure, so it would sit in Gcf until some later plt.show()
+    # flushed it into the wrong cell.
+    plt.show()
+
     # Save (recommended formats for journals)
     # fig.savefig("figure.pdf")
     # fig.savefig("figure.eps")

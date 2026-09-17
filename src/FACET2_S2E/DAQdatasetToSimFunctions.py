@@ -11,7 +11,6 @@ import matplotlib.pyplot as plt
 #import mplstyle
 from matplotlib.ticker import AutoMinorLocator
 from matplotlib.gridspec import GridSpec, GridSpecFromSubplotSpec
-from Experimental_functions import *
 
 # from .UTILITY_quickstart import (
 #     initializeTao,
@@ -19,7 +18,10 @@ from Experimental_functions import *
 #     getBeamAtElement,
 # )
 
-from .UTILITY_quickstart import *
+import numpy as np
+
+from .UTILITY_linacPhaseAndAmplitude import setLinacPhase, setLinacGradientAuto
+from .UTILITY_setLattice import setQuadkG, setSextkG
 
 from .UTILITY_linacPhaseAndAmplitude import matchStringWrapper
 
@@ -276,12 +278,15 @@ def edit_tao_based_on_experiment_database(tao, dataset, correctors_coef=-1/10, c
         setSextkG(tao, k, sextupole_DAQ)
         #print(sextupole_DAQ)
     
-    sextXOffsets = np.array([0,0,0,0,0,0])
-    sextYOffsets = np.array([0,0,0,0,0,0])
+    # Offsets in m, ordered as (S1EL, S2EL, S3EL, S3ER, S2ER, S1ER). The DAQ has movers only for S1/S2 (s1l, s2l, s2r, s1r); S3 stays at 0.
+    # Float arrays: an integer array would truncate the mm-scale offsets to 0.
+    sextXOffsets = np.zeros(6)
+    sextYOffsets = np.zeros(6)
     for i in range(2):
         sextXOffsets[i] = np.mean(dataset._data["scalars"][sextupole_offsets_x_from_daq[i][0]][sextupole_offsets_x_from_daq[i][1]])*1e-3
         sextYOffsets[i] = np.mean(dataset._data["scalars"][sextupole_offsets_y_from_daq[i][0]][sextupole_offsets_y_from_daq[i][1]])*1e-3
-    for i in range(2):
+    for i in range(1, 3):
+        # i=1 -> S1ER (s1r), i=2 -> S2ER (s2r)
         sextXOffsets[-i] = np.mean(dataset._data["scalars"][sextupole_offsets_x_from_daq[-i][0]][sextupole_offsets_x_from_daq[-i][1]])*1e-3
         sextYOffsets[-i] = np.mean(dataset._data["scalars"][sextupole_offsets_y_from_daq[-i][0]][sextupole_offsets_y_from_daq[-i][1]])*1e-3
     setAllWChicaneSextupolesXOffsets(tao, sextXOffsets[0], sextXOffsets[1], sextXOffsets[2], sextXOffsets[3], sextXOffsets[4], sextXOffsets[5])

@@ -1,4 +1,6 @@
 import math
+import os
+from pathlib import Path
 from scipy.stats import moment
 from scipy.stats import gennorm
 from scipy.special import gamma
@@ -11,17 +13,15 @@ import matplotlib.pyplot as plt
 #import mplstyle
 from matplotlib.ticker import AutoMinorLocator
 from matplotlib.gridspec import GridSpec, GridSpecFromSubplotSpec
-from Experimental_functions import *
+from Experimental_functions import DATASET
 
-# from .UTILITY_quickstart import (
-#     initializeTao,
-#     trackBeam,
-#     getBeamAtElement,
-# )
+import numpy as np
+from pmd_beamphysics import ParticleGroup
 
-from .UTILITY_quickstart import *
+from .UTILITY_quickstart import initializeTao, trackBeam, getBeamAtElement
+from .UTILITY_setLattice import setSextkG
 
-from .UTILITY_linacPhaseAndAmplitude import matchStringWrapper
+from .UTILITY_linacPhaseAndAmplitude import matchStringWrapper, setLinacGradientAuto
 
 """Simulation initialization/run/tuning and scan utilities for FACET2-S2E.
 
@@ -53,7 +53,7 @@ from .plottingFunctions import make_a_plot
 
 ### High end
 
-def get_tao_from_experiment(experiment="", scan_number="", date="", start='L0AFEND', finish='PR11375', filepath="/sdf/group/facet/kladov/FACET2_S2E", locationsToSave = [],
+def get_tao_from_experiment(experiment="", scan_number="", date="", start='L0AFEND', finish='PR11375', filepath=None, locationsToSave = [],
                             csrTF=False, lscTF=False, file_ext = "", energy=None, N_in_simple_bunch=5e4, N_to_use_from_file=None, tune_dipoles_to_125_335_4500_10000_MeV=False, tune_dipoles=False,
                             correctors_coef=0, correctors_from_beg=False, run=True, gaussFromExternal=False, edit_only_energy_from_exp=False, energy_edit_on_beam=False, verbose=False,
                             lattice='setLattice_configs/2024-10-22_oneBunch-Copy1.yml', moments=[None,None,None,None,None,None], means=[0,0,0,0,None], charge=1.6e-9, sr_wakes_on=False, lr_wakes_on=False,
@@ -67,7 +67,8 @@ def get_tao_from_experiment(experiment="", scan_number="", date="", start='L0AFE
     start: where the simulation starts. This 1) can affect the initial bunch energy (see "energy"), 2) determines the start for the energy_edit_on_beam and run_initialized_sim functions.
     finish: determines the finish for the energy_edit_on_beam and run_initialized_sim functions.
 
-    filepath: Path to the package. I haven't found a way to do this automatically yet.
+    filepath: Path to the FACET2-S2E repository (the folder with bmad/, beams/, setLattice_configs/, temp_beam/).
+    If None, it is taken from the location of the installed package (works with "pip install -e .").
 
     lattice: additional lattice settings to use.
 
@@ -112,6 +113,13 @@ def get_tao_from_experiment(experiment="", scan_number="", date="", start='L0AFE
     tune_dipoles_to_125_335_4500_10000_MeV: if True, the dipole magnetic fields are set to [125, 335, 4500, 10000] even if the DAQ is provided.
     If False, the simulation is the same as Nathan's, where the dipole strength changes with the lattice energy.
     '''
+    if filepath is None:
+        # src/FACET2_S2E/simulationFunctions.py -> repository root (same rule as initializeTao)
+        filepath = str(Path(__file__).resolve().parents[2])
+    if not os.path.isfile(f"{filepath}/bmad/models/f2_elec/tao.init"):
+        raise FileNotFoundError(f'No FACET2-S2E lattice found in "{filepath}". Pass filepath="/path/to/FACET2-S2E", '
+                                'or install the package with "pip install -e ." so that the repository can be found automatically.')
+
     tao = initializeTao(filePath = filepath, loadCustomLatticeTF=True, csrTF=csrTF, lscTF=lscTF, latticeFile=lattice, bmad_grid_size=grid_size, verbose=verbose, sr_wakes_on=sr_wakes_on, lr_wakes_on=lr_wakes_on, lsc_method=lsc_method, csr_method=csr_method, n_bin=n_bin, autoLoadActiveFile=False)
     
     dipoleEnergies_MeV = [125, 335, 4500, 10000]
@@ -164,8 +172,10 @@ def get_tao_from_experiment(experiment="", scan_number="", date="", start='L0AFE
             locationsToSave = [start, finish]
         if edited_bunch_energy_at_checkpoints_MeV!=[None, None, None, None]:
             tao = run_initialized_sim_edit_bunch_energy(tao, start, finish, edited_bunch_energy_at_checkpoints_MeV=edited_bunch_energy_at_checkpoints_MeV, pre=pre, suf=suf, locations=locationsToSave)
+        elif desired_P0Cs_MeV!=[None, None, None, None]:
+            tao = run_initialized_sim_edit_lattice_energy_for_dipoles(tao, locationsToSave[0], locationsToSave[-1], pre, suf, locationsToSave, desired_P0Cs_MeV=desired_P0Cs_MeV)
         else:
-            tao = run_initialized_sim(tao, locationsToSave[0], locationsToSave[-1], pre, suf, locationsToSave, desired_P0Cs_MeV=desired_P0Cs_MeV)
+            tao = run_initialized_sim(tao, locationsToSave[0], locationsToSave[-1], pre, suf, locationsToSave)
     return tao
 
 def set_beam(tao, file, numMacroParticles = None, timeCenterTF=True):
@@ -182,28 +192,51 @@ def set_beam(tao, file, numMacroParticles = None, timeCenterTF=True):
     tao.cmd(f'set beam_init position_file={file_e + ".h5"}')
     tao.cmd('reinit beam')
 
-def run_initialized_sim(tao, start, finish, pre='temp_beam/', suf='temp', locations=[], treat_dipoles=False, desired_P0Cs_MeV=[None,None,None,None]):
+
+def run_initialized_sim(tao, start, finish, pre='temp_beam/', suf='temp', locations=[], treat_dipoles_TF=False):
     '''
-    If desired_P0Cs_MeV are None and treat_dipoles is False, this function just tracks from start to finish, saving the beam at the locations in "locations".
-    If treat_dipoles is true, before tracking it loads the constant fields from a "nominal" experiment lattice.
-    If desired_P0Cs_MeV is true:
-    tunes the cavities to the provided edited_bunch_energy_at_checkpoints_MeV
+    If treat_dipoles_TF is False, this function just tracks from start to finish, saving the beam at the locations in "locations".
+    If treat_dipoles_TF is True, before tracking it loads the constant fields from a "nominal" experiment lattice (default_bend_fields).
+
+    '''
+    if locations==[]:
+        locations = [start, finish]
+    if locations==None:
+        locations=[]
+
+    if treat_dipoles_TF:
+        tao = treat_dipoles(tao)
+    trackBeam(tao, filepath=tao.filePathGlobal, trackStart = start, trackEnd = finish, autoLoadActiveFile=False)
+
+    for ind in range(len(locations)):
+        P = getBeamAtElement(tao, locations[ind], tToZ=False)
+        P.write(tao.filePathGlobal+"/"+pre+locations[ind]+suf +'.h5')
+
+    return tao
+
+
+def run_initialized_sim_edit_lattice_energy_for_dipoles(tao, start, finish, pre='temp_beam/', suf='temp', locations=[], desired_P0Cs_MeV=[None,None,None,None]):
+    '''
+    Old function to change the bend energies without DB_Field.
+    If desired_P0Cs_MeV are None, this function just tracks from start to finish, saving the beam at the locations in "locations".
+    If desired_P0Cs_MeV is something else, it:
+    tunes the cavities to the desired_P0Cs_MeV
     tracks to the BX0FBEG
     tunes them back to 125, 335, 4500, 10000
     tracks to the BX0FEND
-    tunes them to the provided edited_bunch_energy_at_checkpoints_MeV
+    tunes them to the desired_P0Cs_MeV
     tracks to the BC11CBEG
     tunes them back to 125, 335, 4500, 10000
     tracks to the BC11CEND
-    tunes them to the provided edited_bunch_energy_at_checkpoints_MeV
+    tunes them to the desired_P0Cs_MeV
     tracks to the BC14CBEG
     tunes them back to 125, 335, 4500, 10000
     tracks to the BC14CEND
-    tunes them to the provided edited_bunch_energy_at_checkpoints_MeV
+    tunes them to the desired_P0Cs_MeV
     tracks to the BC20CBEG
     tunes them back to 125, 335, 4500, 10000
     tracks to the BC20CEND
-    tunes them to the provided edited_bunch_energy_at_checkpoints_MeV
+    tunes them to the desired_P0Cs_MeV
     tracks to the finish
 
     '''
@@ -212,63 +245,59 @@ def run_initialized_sim(tao, start, finish, pre='temp_beam/', suf='temp', locati
     if locations==None:
         locations=[]
 
-    if treat_dipoles:
-        tao = treat_dipoles1(tao)
-        trackBeam(tao, filepath=tao.filePathGlobal, trackStart = start, trackEnd = finish, autoLoadActiveFile=False)
-    else:
-        current_start = start
-        # injector
-        if desired_P0Cs_MeV[0] is not None:
-            tune_to_P0Cs(tao, desired_P0Cs_MeV=desired_P0Cs_MeV, change_only_L0B=True)
-            trackBeam(tao, filepath=tao.filePathGlobal, trackStart = current_start, trackEnd = "BX0FBEG", autoLoadActiveFile=False)
-            getBeamAtElement(tao, "BX0FBEG", tToZ=False).write(tao.filePathGlobal+"/"+"temp_beam/temp.h5")
-            set_beam(tao, tao.filePathGlobal+"/"+"temp_beam/temp")
-            tune_to_P0Cs(tao, desired_P0Cs_MeV=[125, 335, 4500, 10000], change_only_L0B=True)        
-            current_start = "BX0FBEG"
-            trackBeam(tao, filepath=tao.filePathGlobal, trackStart = current_start, trackEnd = "BX0FEND", autoLoadActiveFile=False)
-            #print(f'<x> inside of the dogleg: {tao.bunch_params("BPM10731")["centroid_vec_1"]}')
-            getBeamAtElement(tao, "BX0FEND", tToZ=False).write(tao.filePathGlobal+"/"+"temp_beam/temp.h5")
-            set_beam(tao, tao.filePathGlobal+"/"+"temp_beam/temp")
-            current_start = "BX0FEND"
-            tune_to_P0Cs(tao, desired_P0Cs_MeV=desired_P0Cs_MeV)
-        # L1
-        if desired_P0Cs_MeV[1] is not None:
-            trackBeam(tao, filepath=tao.filePathGlobal, trackStart = current_start, trackEnd = "BC11CBEG", autoLoadActiveFile=False)
-            getBeamAtElement(tao, "BC11CBEG", tToZ=False).write(tao.filePathGlobal+"/"+"temp_beam/temp.h5")
-            set_beam(tao, tao.filePathGlobal+"/"+"temp_beam/temp")
-            tune_to_P0Cs(tao, desired_P0Cs_MeV=[125, 335, 4500, 10000])
-            current_start = "BC11CBEG"
-            trackBeam(tao, filepath=tao.filePathGlobal, trackStart = current_start, trackEnd = "BC11CEND", autoLoadActiveFile=False)
-            getBeamAtElement(tao, "BC11CEND", tToZ=False).write(tao.filePathGlobal+"/"+"temp_beam/temp.h5")
-            set_beam(tao, tao.filePathGlobal+"/"+"temp_beam/temp")
-            current_start = "BC11CEND"
-            tune_to_P0Cs(tao, desired_P0Cs_MeV=desired_P0Cs_MeV)
-        # L2
-        if desired_P0Cs_MeV[2] is not None:
-            trackBeam(tao, filepath=tao.filePathGlobal, trackStart = current_start, trackEnd = "BEGBC14E", autoLoadActiveFile=False)
-            getBeamAtElement(tao, "BEGBC14E", tToZ=False).write(tao.filePathGlobal+"/"+"temp_beam/temp.h5")
-            set_beam(tao, tao.filePathGlobal+"/"+"temp_beam/temp")
-            tune_to_P0Cs(tao, desired_P0Cs_MeV=[125, 335, 4500, 10000])
-            current_start = "BEGBC14E"
-            trackBeam(tao, filepath=tao.filePathGlobal, trackStart = current_start, trackEnd = "ENDBC14E", autoLoadActiveFile=False)
-            getBeamAtElement(tao, "ENDBC14E", tToZ=False).write(tao.filePathGlobal+"/"+"temp_beam/temp.h5")
-            set_beam(tao, tao.filePathGlobal+"/"+"temp_beam/temp")
-            current_start = "ENDBC14E"
-            tune_to_P0Cs(tao, desired_P0Cs_MeV=desired_P0Cs_MeV)
-        # L3
-        if desired_P0Cs_MeV[3] is not None:
-            trackBeam(tao, filepath=tao.filePathGlobal, trackStart = current_start, trackEnd = "BEGBC20", autoLoadActiveFile=False)
-            getBeamAtElement(tao, "BEGBC20", tToZ=False).write(tao.filePathGlobal+"/"+"temp_beam/temp.h5")
-            set_beam(tao, tao.filePathGlobal+"/"+"temp_beam/temp")
-            tune_to_P0Cs(tao, desired_P0Cs_MeV=[125, 335, 4500, 10000])
-            current_start = "BEGBC20"
-            trackBeam(tao, filepath=tao.filePathGlobal, trackStart = current_start, trackEnd = "ENDBC20", autoLoadActiveFile=False)
-            getBeamAtElement(tao, "ENDBC20", tToZ=False).write(tao.filePathGlobal+"/"+"temp_beam/temp.h5")
-            set_beam(tao, tao.filePathGlobal+"/"+"temp_beam/temp")
-            current_start = "ENDBC20"
-            tune_to_P0Cs(tao, desired_P0Cs_MeV=desired_P0Cs_MeV)
-        # Fin
-        trackBeam(tao, filepath=tao.filePathGlobal, trackStart = current_start, trackEnd = finish, autoLoadActiveFile=False)
+    current_start = start
+    # injector
+    if desired_P0Cs_MeV[0] is not None:
+        tune_to_P0Cs(tao, desired_P0Cs_MeV=desired_P0Cs_MeV, change_only_L0B=True)
+        trackBeam(tao, filepath=tao.filePathGlobal, trackStart = current_start, trackEnd = "BX0FBEG", autoLoadActiveFile=False)
+        getBeamAtElement(tao, "BX0FBEG", tToZ=False).write(tao.filePathGlobal+"/"+"temp_beam/temp.h5")
+        set_beam(tao, tao.filePathGlobal+"/"+"temp_beam/temp")
+        tune_to_P0Cs(tao, desired_P0Cs_MeV=[125, 335, 4500, 10000], change_only_L0B=True)        
+        current_start = "BX0FBEG"
+        trackBeam(tao, filepath=tao.filePathGlobal, trackStart = current_start, trackEnd = "BX0FEND", autoLoadActiveFile=False)
+        #print(f'<x> inside of the dogleg: {tao.bunch_params("BPM10731")["centroid_vec_1"]}')
+        getBeamAtElement(tao, "BX0FEND", tToZ=False).write(tao.filePathGlobal+"/"+"temp_beam/temp.h5")
+        set_beam(tao, tao.filePathGlobal+"/"+"temp_beam/temp")
+        current_start = "BX0FEND"
+        tune_to_P0Cs(tao, desired_P0Cs_MeV=desired_P0Cs_MeV)
+    # L1
+    if desired_P0Cs_MeV[1] is not None:
+        trackBeam(tao, filepath=tao.filePathGlobal, trackStart = current_start, trackEnd = "BC11CBEG", autoLoadActiveFile=False)
+        getBeamAtElement(tao, "BC11CBEG", tToZ=False).write(tao.filePathGlobal+"/"+"temp_beam/temp.h5")
+        set_beam(tao, tao.filePathGlobal+"/"+"temp_beam/temp")
+        tune_to_P0Cs(tao, desired_P0Cs_MeV=[125, 335, 4500, 10000])
+        current_start = "BC11CBEG"
+        trackBeam(tao, filepath=tao.filePathGlobal, trackStart = current_start, trackEnd = "BC11CEND", autoLoadActiveFile=False)
+        getBeamAtElement(tao, "BC11CEND", tToZ=False).write(tao.filePathGlobal+"/"+"temp_beam/temp.h5")
+        set_beam(tao, tao.filePathGlobal+"/"+"temp_beam/temp")
+        current_start = "BC11CEND"
+        tune_to_P0Cs(tao, desired_P0Cs_MeV=desired_P0Cs_MeV)
+    # L2
+    if desired_P0Cs_MeV[2] is not None:
+        trackBeam(tao, filepath=tao.filePathGlobal, trackStart = current_start, trackEnd = "BEGBC14E", autoLoadActiveFile=False)
+        getBeamAtElement(tao, "BEGBC14E", tToZ=False).write(tao.filePathGlobal+"/"+"temp_beam/temp.h5")
+        set_beam(tao, tao.filePathGlobal+"/"+"temp_beam/temp")
+        tune_to_P0Cs(tao, desired_P0Cs_MeV=[125, 335, 4500, 10000])
+        current_start = "BEGBC14E"
+        trackBeam(tao, filepath=tao.filePathGlobal, trackStart = current_start, trackEnd = "ENDBC14E", autoLoadActiveFile=False)
+        getBeamAtElement(tao, "ENDBC14E", tToZ=False).write(tao.filePathGlobal+"/"+"temp_beam/temp.h5")
+        set_beam(tao, tao.filePathGlobal+"/"+"temp_beam/temp")
+        current_start = "ENDBC14E"
+        tune_to_P0Cs(tao, desired_P0Cs_MeV=desired_P0Cs_MeV)
+    # L3
+    if desired_P0Cs_MeV[3] is not None:
+        trackBeam(tao, filepath=tao.filePathGlobal, trackStart = current_start, trackEnd = "BEGBC20", autoLoadActiveFile=False)
+        getBeamAtElement(tao, "BEGBC20", tToZ=False).write(tao.filePathGlobal+"/"+"temp_beam/temp.h5")
+        set_beam(tao, tao.filePathGlobal+"/"+"temp_beam/temp")
+        tune_to_P0Cs(tao, desired_P0Cs_MeV=[125, 335, 4500, 10000])
+        current_start = "BEGBC20"
+        trackBeam(tao, filepath=tao.filePathGlobal, trackStart = current_start, trackEnd = "ENDBC20", autoLoadActiveFile=False)
+        getBeamAtElement(tao, "ENDBC20", tToZ=False).write(tao.filePathGlobal+"/"+"temp_beam/temp.h5")
+        set_beam(tao, tao.filePathGlobal+"/"+"temp_beam/temp")
+        current_start = "ENDBC20"
+        tune_to_P0Cs(tao, desired_P0Cs_MeV=desired_P0Cs_MeV)
+    # Fin
+    trackBeam(tao, filepath=tao.filePathGlobal, trackStart = current_start, trackEnd = finish, autoLoadActiveFile=False)
 
     for ind in range(len(locations)):
         P = getBeamAtElement(tao, locations[ind], tToZ=False)
@@ -279,7 +308,7 @@ def run_initialized_sim(tao, start, finish, pre='temp_beam/', suf='temp', locati
 
 def run_initialized_sim_edit_bunch_energy(tao, start, finish, pre='temp_beam/', suf='temp', locations=[], edited_bunch_energy_at_checkpoints_MeV=[None,None,None,None]):
     '''
-    Tracks the bunch and changes the bunch energy at BX0FBEG, BC11CBEG, ENDL2F, ENDL3F_2 if any of edited_bunch_energy_at_checkpoints_MeV (list with 4 numbers) is not -1.
+    Tracks the bunch and changes the bunch energy at BX0FBEG, BC11CBEG, ENDL2F, ENDL3F_2 if any of edited_bunch_energy_at_checkpoints_MeV (list with 4 numbers) is not None.
     '''
     if locations==[]:
         locations = [start, finish]
@@ -357,13 +386,14 @@ def tune_to_P0Cs(tao, desired_P0Cs_MeV=[125, 335, 4500, 10000], change_only_L0B=
 
 def save_dipoles(tao, dipoleEnergiesMeV=[125, 335, 4500, 10000]):
     '''
-    A test function to deal with the dipoles. Hopefully I will find the solution...
+    Changes the lattice energy to the dipoleEnergiesMeV, saves the dipole fields, and changes the lattice energy back to the original values.
     '''
     initial_energy_bx = tao.ele_gen_attribs('BX0FBEG')["P0C"]*1e-6
     initial_energy_bc11 = tao.ele_gen_attribs('BC11CBEG')["P0C"]*1e-6
     initial_energy_bc14 = tao.ele_gen_attribs('ENDL2F')["P0C"]*1e-6
     initial_energy_bc20 = tao.ele_gen_attribs('ENDL3F_2')["P0C"]*1e-6
 
+    # Change the energies to the desired ones
     tao = tune_to_P0Cs(tao, desired_P0Cs_MeV=dipoleEnergiesMeV)
 
     fields = {}
@@ -377,18 +407,8 @@ def save_dipoles(tao, dipoleEnergiesMeV=[125, 335, 4500, 10000]):
 
     return fields
 
-def treat_dipoles(tao, fields):
-    '''
-    A function to deal with the dipoles. Uses the fields from the input.
-    Use this function after all other adjustments (before running the simulation) to set the fields to the nominal values.
-    WARNING! Will not work properly if the dipoles were set to field_master=True at any point.
-    '''
-    for k, v in fields.items():
-        current_field = tao.ele_gen_attribs(k)["B_FIELD"]
-        tao.cmd(f'set ele {k} DB_FIELD = {v-current_field}')
-    return tao
 
-fields = {
+default_bend_fields = {
     'BCX10451': 0.4399498913496881,
     'BCX10461': -0.4399498913496881,
     'BCX10475': -0.4399498913496881,
@@ -415,9 +435,11 @@ fields = {
     'B5D36': -0.2046605187706695
 }
 
-def treat_dipoles1(tao):
+
+def treat_dipoles(tao, fields=default_bend_fields):
     '''
-    A function to deal with the dipoles. Uses the constants for the fields tuned to the nominal energies.
+    A function to deal with the dipoles. Uses the fields from the input.
+    If fields is not provided, the default_bend_fields are used (corresponding to the nominal energies).
     Use this function after all other adjustments (before running the simulation) to set the fields to the nominal values.
     WARNING! Will not work properly if the dipoles were set to field_master=True at any point.
     '''
@@ -588,8 +610,11 @@ def make_1d_scan(tao, mean=0, nscan=21, scan_span=5e-3, function_to_change_tao_i
     return scan_values, output
 
 
-def make_comparison_dz_2nd_order(tao, beam_file='temp_beam/temp', start='L0AFEND', finish='PR11375', means_shift=[0,0,0,0,0,0], theory=True, second_order=True, **kwargs):
-    """Compare simulation and second-order theory for longitudinal bunch size growth."""
+def make_comparison_dz_2nd_order(tao, beam_file=None, start='L0AFEND', finish='PR11375', means_shift=[0,0,0,0,0,0], theory=True, second_order=True, **kwargs):
+    """Compare simulation and second-order theory for longitudinal bunch size growth.
+    beam_file: beam file without ".h5". Default: <repository>/temp_beam/temp."""
+    if beam_file is None:
+        beam_file = tao.filePathGlobal + "/temp_beam/temp"
     # sim
     set_beam(tao, beam_file)
     run_initialized_sim(tao, start, finish)

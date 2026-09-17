@@ -59,6 +59,8 @@ The notebooks in the repository demonstrate typical workflows:
 * **`Example - Final focus tuning.ipynb`** – demonstrates the final focus optics optimizer to pick magnet settings to achieve desired Twiss
 * **`Example - Multiparticle tracking optimization.ipynb`** – demonstrates optimization constrained by real-world hardware limits of a multiparticle tracked beam
 * **`Example - Solution postprocessing and analysis.ipynb`** – postprocessing and analysis of the beam throughout the lattice
+* **`Kladov_BMAD_tutorial.ipynb`** – Bmad simulations with lattice settings loaded from a FACET-II DAQ scan (`get_tao_from_experiment()`). See [BMAD_DAQ_WORKFLOW.md](BMAD_DAQ_WORKFLOW.md) for the full workflow
+* **`Kladov_BMAD_dipole_showcase.ipynb`** – how bends are simulated when the linac energies differ from the nominal ones
 * **`Example - Beam visualization.nb`** – Mathematica notebook for advanced beam visualization and analysis, including 3D animation generation
 * **`Example - Optimization progress dashboard.nb`** – Mathematica companion notebook which visualizes optimization progress, e.g. parameter sensitivities and convergence
 * **`Example - Jitter study.py`** – Parallel computation of many simulations with parameters subject to jitter, informed by real-world measurements

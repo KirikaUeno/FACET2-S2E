@@ -2,8 +2,9 @@ import math
 from scipy.stats import moment
 from scipy.ndimage import gaussian_filter1d
 
-from Experimental_functions import *
-from .UTILITY_quickstart import *
+import numpy as np
+import matplotlib.pyplot as plt
+from pmd_beamphysics import ParticleGroup
 from .plottingFunctions import make_a_plot
 
 def make_modulated_bunch(beam, wavelength=30e-6, mod_amplitude=0.1, save_file=""):

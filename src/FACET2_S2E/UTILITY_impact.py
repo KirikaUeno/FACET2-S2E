@@ -1,5 +1,5 @@
 #Adapted from https://github.com/ericcropp/Impact-T_Examples/blob/main/FACET-II_Impact_Bmad/Impact_Bmad.ipynb
-from .UTILITY_quickstart import *
+import pmd_beamphysics
 
 
 from distgen import Generator
