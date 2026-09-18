@@ -235,7 +235,55 @@ bmad_corrector_to_pv_map = {
     'YC11321': ["nonBSA_List_S11", 'YCOR_LI11_321_BCON'],
     'YC11365': ["nonBSA_List_S11", 'YCOR_LI11_365_BCON'],
     'XC11398': ["nonBSA_List_S11", 'XCOR_LI11_398_BCON'],
-    'YC11399': ["nonBSA_List_S11", 'YCOR_LI11_399_BCON']
+    'YC11399': ["nonBSA_List_S11", 'YCOR_LI11_399_BCON'],
+    
+    # Sector 19 correctors
+    'XC19202': ["nonBSA_List_S19", 'LI19_XCOR_202_BACT'],
+    'XC19302': ["nonBSA_List_S19", 'LI19_XCOR_302_BACT'],
+    'XC19402': ["nonBSA_List_S19", 'LI19_XCOR_402_BACT'],
+    'XC19502': ["nonBSA_List_S19", 'LI19_XCOR_502_BACT'],
+    'XC19602': ["nonBSA_List_S19", 'LI19_XCOR_602_BACT'],
+    'XC19700': ["nonBSA_List_S19", 'LI19_XCOR_700_BACT'],
+    'XC19802': ["nonBSA_List_S19", 'LI19_XCOR_802_BACT'],
+    'XC19900': ["nonBSA_List_S19", 'LI19_XCOR_900_BACT'],
+
+    'YC19203': ["nonBSA_List_S19", 'LI19_YCOR_203_BACT'],
+    'YC19303': ["nonBSA_List_S19", 'LI19_YCOR_303_BACT'],
+    'YC19403': ["nonBSA_List_S19", 'LI19_YCOR_403_BACT'],
+    # 'YC57145': ["", ''], - not saved in DAQ
+    # 'YC57146': ["", ''], - not saved in DAQ
+    'YC19503': ["nonBSA_List_S19", 'LI19_YCOR_503_BACT'],
+    'YC19603': ["nonBSA_List_S19", 'LI19_YCOR_603_BACT'],
+    'YC19700': ["nonBSA_List_S19", 'LI19_YCOR_700_BACT'],
+    'YC19803': ["nonBSA_List_S19", 'LI19_YCOR_803_BACT'],
+    'YC19900': ["nonBSA_List_S19", 'LI19_YCOR_900_BACT'],
+
+    'XC1996': ["nonBSA_List_S20Magnets", 'LI20_XCOR_1996_BACT'],
+
+    # BC20 chicane, horizontal
+    'XC1E':   ["nonBSA_List_S20Magnets", 'LI20_XCOR_2096_BACT'],
+    'XC2E':   ["nonBSA_List_S20Magnets", 'LI20_XCOR_2176_BACT'],
+    'XC3E':   ["nonBSA_List_S20Magnets", 'LI20_XCOR_2326_BACT'],
+    'XC4E':   ["nonBSA_List_S20Magnets", 'LI20_XCOR_2396_BACT'],
+    'XC2460': ["nonBSA_List_S20Magnets", 'LI20_XCOR_2460_BACT'],
+    # BC20 chicane, vertical
+    'YC1E':   ["nonBSA_List_S20Magnets", 'LI20_YCOR_2087_BACT'],
+    'YC2181': ["nonBSA_List_S20Magnets", 'LI20_YCOR_2181_BACT'],
+    'YC2E':   ["nonBSA_List_S20Magnets", 'LI20_YCOR_2227_BACT'],
+    'YC3E':   ["nonBSA_List_S20Magnets", 'LI20_YCOR_2267_BACT'],
+    'YC2321': ["nonBSA_List_S20Magnets", 'LI20_YCOR_2321_BACT'],
+    'YCWIGE': ["nonBSA_List_S20Magnets", 'LI20_YCOR_2420_BACT'],
+    # bend trims
+    'XCB2LE': ["nonBSA_List_S20Magnets", 'LI20_BTRM_2111_BACT'],
+    'XCB3LE': ["nonBSA_List_S20Magnets", 'LI20_BTRM_2241_BACT'],
+    'XCB3RE': ["nonBSA_List_S20Magnets", 'LI20_BTRM_2261_BACT'],
+    'XCB2RE': ["nonBSA_List_S20Magnets", 'LI20_BTRM_2391_BACT'],
+    # final focus / spectrometer
+    'XC1FF':  ["nonBSA_List_S20Magnets", 'LI20_XCOR_3026_BACT'],
+    'YC1FF':  ["nonBSA_List_S20Magnets", 'LI20_YCOR_3017_BACT'],
+    'YC2FF':  ["nonBSA_List_S20Magnets", 'LI20_YCOR_3057_BACT'],
+    'XC3FF':  ["nonBSA_List_S20Magnets", 'LI20_XCOR_3086_BACT'],
+    'XC1EX':  ["nonBSA_List_S20Magnets", 'LI20_XCOR_3276_BACT'],  # by elimination
 }
 
 
