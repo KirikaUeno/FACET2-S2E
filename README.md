@@ -417,6 +417,8 @@ Everything in `FACET2_S2E.__all__` is available directly as `qs.<name>`. The cod
 | `codes.impact` | IMPACT-T interface |
 | `codes.qpad`, `codes.qpad_picmi` | QPAD interface and visualization |
 
+The old `UTILITY_*` module paths (e.g. `from FACET2_S2E.UTILITY_quickstart import trackBeam`) still work but emit a `FutureWarning`; they will be removed in a future version, so please switch to `qs.<name>` or the modules above.
+
 
 For complete examples, see the notebooks in `examples/`.
 
