@@ -81,6 +81,6 @@ be sent upstream as a pull request.
 ## Use within FACET2-S2E
 
 Only the `DATASET` class is used, and only at a single site:
-`src/FACET2_S2E/simulationFunctions.py`, in `get_tao_from_experiment()`. The
-resulting object is consumed by `src/FACET2_S2E/DAQdatasetToSimFunctions.py`,
-which reads `dataset._data["scalars"][...]`.
+`src/FACET2_S2E/simulation/experiment.py`, in `get_tao_from_experiment()`. The
+resulting object is consumed by the lattice-edit functions in the same module,
+which read `dataset._data["scalars"][...]`.

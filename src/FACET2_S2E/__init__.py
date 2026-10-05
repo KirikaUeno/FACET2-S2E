@@ -1,139 +1,51 @@
 """
 FACET2_S2E: Simulation tools for FACET-II start-to-end beam dynamics
+
+Layout:
+    simulation/  Tao initialization, tracking, simulation runs, energy tuning,
+                 DAQ-experiment lattices, scans
+    lattice/     setLattice and EPICS-unit element control, linac phasing,
+                 optics/matrices, final focus solver
+    beam/        bunch generation, manipulation, statistics, microbunching
+    plotting/    phase-space, bunch summary, floorplan, styling
+    codes/       interfaces to external codes (IMPACT-T, QPAD)
+
+Everything listed in __all__ is available directly as FACET2_S2E.<name>.
 """
 
-from .UTILITY_quickstart import (
-    # Core initialization and tracking
+## Simulation
+
+from .simulation.core import (
     initializeTao,
     applyBMADCollectiveEffectSettings,
     trackBeam,
     trackBeamHelper,
     getBeamAtElement,
-    ballisticPropagation,
-    
-    # Beam manipulation and analysis
-    nudgeMacroparticleWeights,
-    getDriverAndWitness,
     writeBeam,
     makeBeamActiveBeamFile,
-    centerBeam,
-    collimateBeam,
-    sliceBeam,
-    getSingleBeamSlice,
-    
-    # Statistical analysis
-    smallestInterval,
-    smallestIntervalImpliedSigma,
-    smallestIntervalImpliedEmittance,
-    smallestIntervalImpliedEmittanceModelFunction,
-    emittance,
-    getBeamSpecs,
-    
-    # Matrix and lattice operations
-    displayMatrix,
-    getMatrix,
-    getMatrixLEGACY,
-    setLatticeAndGetMatrix,
-    
-    # Beam modulation
-    addLHmodulation,
-    calcBMAG,
-    
-    # Configuration utilities
+)
+from .simulation.config import (
     loadConfig,
-    
-    # Optimization and correction
-    launchTwissCorrection,
-    launchTwissCorrectionObjective,
-    generalizedEmittanceSolver,
-    generalizedEmittanceSolverObjective,
-    
-    # Lattice configuration
+    applyOtherConfig,
     disableAutoQuadEnergyCompensation,
     disableAutoMagnetEnergyCompensation,
-    applyOtherConfig,
-    
-    # Helper utilities
-    sortIndices,
 )
-
-
-from .UTILITY_QPAD import (
-    # QPAD visualization and analysis
-    plotInteractiveQPADFigure,
-    saveAllQPADFigures,
-    plotPlasmaProfile,
-)
-
-# Import commonly used functions from other utility modules
-from .UTILITY_plotMod import plotMod, slicePlotMod, floorplanPlot
-from .UTILITY_linacPhaseAndAmplitude import getLinacMatchStrings, setLinacPhase, setLinacGradientAuto
-from .UTILITY_setLattice import (
-    setLattice, 
-    getBendkG, getQuadkG, getSextkG,
-    setBendkG, setQuadkG, setSextkG,
-    setXOffset, setYOffset,
-    getKickerkG, setKickerkG,
-    getBendGeVc, setBendGeVc
-)
-from .UTILITY_finalFocusSolver import finalFocusSolver
-
-# Functions ported over from FACET2_S2E_Kladov (kept there too, unmodified).
-
-from .beamFunctions import (
-    ## Bunch support functions
-
-    ### Create a bunch
-    make_simple_bunch,
-    make_simple_bunch_flatter,
-    make_simple_bunch_standalone,
-    make_simple_bunch_theory_from_bunch_sims,
-    ### Modify the bunch as a whole (sizes, means, chirps, correlations),
-    modifyInputBeamSimple,
-    #sqrtm_psd,
-    #invsqrtm_psd,
-    edit_bunch_parameters_from_PG,
-    edit_bunch_parameters,
-    ### Cut the bunch to a certain length
-    cut_length,
-)
-
-from .simulationFunctions import (
-    ## Initialize and run a simulation
-
-    ### High end
-    get_tao_from_experiment,
+from .simulation.runs import (
     set_beam,
     run_initialized_sim,
     run_initialized_sim_edit_lattice_energy_for_dipoles,
     run_initialized_sim_edit_bunch_energy,
-    ### Correct the lattice to match the desired Pz
+    edit_energy_based_on_beam_all,
+)
+from .simulation.energy import (
     tune_to_P0Cs,
     edit_energy_based_on_beam_inj,
     edit_energy_based_on_beam_L1,
     edit_energy_based_on_beam_L2,
     edit_energy_based_on_beam_L3,
-    edit_energy_based_on_beam_all,
-
-    ## Scans
-    make_1d_scan,
-    make_comparison_dz_2nd_order,
-
-    ## Simulation parameters functions
-
-    # Get lattice info
-    get_element_array,
-    get_rij,
-    get_tijk,
-    ### Sextupole settings
-    setAllWChicaneSextupoles,
-    setAllWChicaneSextupolesXOffsets,
-    setAllWChicaneSextupolesYOffsets,
 )
-
-from .DAQdatasetToSimFunctions import (
-    ## Edit lattice according to experiment
-
+from .simulation.experiment import (
+    get_tao_from_experiment,
     ### BMAD to DAQ funcs
     get_l0a_phase,
     get_l0a_ampl,
@@ -143,31 +55,77 @@ from .DAQdatasetToSimFunctions import (
     edit_tao_based_on_experiment_database,
     edit_energy_tao_based_on_experiment_database,
 )
-
-from .plottingFunctions import (
-    ## Plotting functions
-
-    enable_plt_styling,
-    ### Display a bunch. Aliased: FACET2_S2E already has its own plotMod (UTILITY_plotMod above);
-    ### this one is Kladov's, kept available under a distinct name.
-    plotMod as plotModKladov,
-    print_result,
-    print_result_from_tao,
-    print_result_from_file,
-
-    ## Make a nice plot from arrays
-    #'normalize_arrays,
-    make_a_plot,
+from .simulation.scans import (
+    make_1d_scan,
+    make_comparison_dz_2nd_order,
 )
 
-from .microbunchingFunctions import (
-    ### Add microbunching to a bunch
+## Lattice
+
+from .lattice.set_lattice import (
+    setLattice,
+    getBendkG, getQuadkG, getSextkG,
+    setBendkG, setQuadkG, setSextkG,
+    setXOffset, setYOffset,
+    getKickerkG, setKickerkG,
+    getBendGeVc, setBendGeVc,
+    setAllWChicaneSextupoles,
+    setAllWChicaneSextupolesXOffsets,
+    setAllWChicaneSextupolesYOffsets,
+)
+from .lattice.linac import getLinacMatchStrings, setLinacPhase, setLinacGradientAuto
+from .lattice.optics import (
+    displayMatrix,
+    getMatrix,
+    getMatrixLEGACY,
+    setLatticeAndGetMatrix,
+    calcBMAG,
+    launchTwissCorrection,
+    launchTwissCorrectionObjective,
+    get_element_array,
+    get_rij,
+    get_tijk,
+)
+from .lattice.final_focus import finalFocusSolver
+
+## Beam
+
+from .beam.generation import (
+    make_simple_bunch,
+    make_simple_bunch_flatter,
+    make_simple_bunch_standalone,
+    make_simple_bunch_theory_from_bunch_sims,
+)
+from .beam.manipulation import (
+    modifyInputBeamSimple,
+    #sqrtm_psd,
+    #invsqrtm_psd,
+    edit_bunch_parameters_from_PG,
+    edit_bunch_parameters,
+    cut_length,
+    ballisticPropagation,
+    nudgeMacroparticleWeights,
+    getDriverAndWitness,
+    centerBeam,
+    collimateBeam,
+    sortIndices,
+    sliceBeam,
+    getSingleBeamSlice,
+)
+from .beam.analysis import (
+    smallestInterval,
+    smallestIntervalImpliedSigma,
+    smallestIntervalImpliedEmittance,
+    smallestIntervalImpliedEmittanceModelFunction,
+    emittance,
+    getBeamSpecs,
+    generalizedEmittanceSolver,
+    generalizedEmittanceSolverObjective,
+)
+from .beam.microbunching import (
+    addLHmodulation,
     make_modulated_bunch,
-
-    ## Display the bunch density distribution \rho(z)
     hist,
-
-    ## Spectrum functions
     get_nbins_for_wavelength,
     get_spectrum,
     print_spec,
@@ -176,6 +134,31 @@ from .microbunchingFunctions import (
     analyze_spec,
     get_microbunching_gain_from_beams,
     get_microbunching_gain,
+)
+
+## Plotting
+
+from .plotting.phase_space import plotMod, slicePlotMod
+from .plotting.floorplan import floorplanPlot
+### Kladov's plotMod, kept available under a distinct name.
+from .plotting.bunch_summary import (
+    plotMod as plotModKladov,
+    print_result,
+    print_result_from_tao,
+    print_result_from_file,
+)
+from .plotting.style import (
+    enable_plt_styling,
+    #normalize_arrays,
+    make_a_plot,
+)
+
+## External codes
+
+from .codes.qpad import (
+    plotInteractiveQPADFigure,
+    saveAllQPADFigures,
+    plotPlasmaProfile,
 )
 
 __all__ = [

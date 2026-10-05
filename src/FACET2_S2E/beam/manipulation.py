@@ -1,151 +1,13 @@
-import math
-from scipy.stats import moment
-from scipy.stats import gennorm
-from scipy.special import gamma
-from scipy.optimize import curve_fit
-from scipy.ndimage import gaussian_filter1d
-import pprint
-from copy import copy
-import matplotlib.pyplot as plt
+"""Modify an existing beam: rematch, resample, center, collimate, slice, cut, drift.
 
-#import mplstyle
-from matplotlib.ticker import AutoMinorLocator
-from matplotlib.gridspec import GridSpec, GridSpecFromSubplotSpec
+Moved from beamFunctions.py, UTILITY_modifyAndSaveInputBeam.py and
+UTILITY_quickstart.py.
+"""
 
 import random
 import numpy as np
 from pmd_beamphysics import ParticleGroup
-
-from .UTILITY_linacPhaseAndAmplitude import matchStringWrapper
-
-"""Beam preparation utilities for FACET2-S2E simulation workflows.
-
-This module contains functions to create bunches (Gaussian and
-theory-matched), and to modify an existing bunch as a whole (sizes,
-means, chirps, correlations) or cut a certain length out of it.
-
-Split out of the former functionsForSims.py.
-"""
-
-## Bunch support functions
-
-### Create a bunch
-
-def make_simple_bunch(file, n = 0, save_path = ''):
-    """Create a Gaussian bunch with statistics matched to an input beam.
-
-    The transverse and momentum distributions are drawn from normal
-    distributions matched to the input beam rms values.
-    The transverse emittance is increased (alpha = 0, rms are the same);
-    The longitudinal emittance is kept approximately the same (alpha = 0, rms by pz is taken from a 0.1um slice).
-
-    Parameters:
-        file: Base path of input beam file without the .h5 extension.
-        n: Number of macro particles to generate. If 0, the input beam size is used.
-        save_path: Output file path without extension. If "", file+'_simple.h5' is used.
-
-    Returns:
-        ParticleGroup: Generated bunch.
-    """
-    beam = ParticleGroup(file + '.h5')
-    
-    N = np.size(beam.x)
-    N = N if n==0 else n
-    charge = beam.charge
-    data = {'x': np.zeros(N), 'px': np.zeros(N), 'y': np.zeros(N), 'py': np.zeros(N), 'z': np.zeros(N), 'pz': np.zeros(N), 't': np.zeros(N), 'status': np.ones(N).astype(int), 'weight': np.ones(N)*charge/N, 'species': 'electron', 'id': np.arange(N).astype(int)}
-    P1 = ParticleGroup(data = data)
-    
-    Pslice = cut_length(beam, length = 1e-7)
-    
-    P1.x = np.random.normal(0, 1*moment(beam.x, moment=2) ** 0.5, N)
-    P1.y = np.random.normal(0, 1*moment(beam.y, moment=2) ** 0.5, N)
-    P1.px = np.random.normal(0, 1*moment(beam.px, moment=2) ** 0.5, N)
-    P1.py = np.random.normal(0, 1*moment(beam.py, moment=2) ** 0.5, N)
-    P1.pz = np.random.normal(np.mean(beam.pz), 1*moment(Pslice.pz, moment=2) ** 0.5, N)
-    P1.t = np.random.normal(0, 1*moment(beam.t, moment=2) ** 0.5, N)
-    
-    match_impact_file = file + '_simple' + '.h5' if save_path=='' else save_path + '.h5'
-    P1.write(match_impact_file)
-    return P1
-
-
-def make_simple_bunch_flatter(file, n = 0, save_path = ''):
-    """Create a flatter bunch using a generalized normal time distribution.
-
-    Similar to make_simple_bunch, but the longitudinal time coordinate is
-    sampled from a generalized normal distribution to produce a flatter
-    longitudinal profile.
-
-    Parameters:
-        file: Base path of input beam file without the .h5 extension.
-        n: Number of macro particles to generate. If 0, the input beam size is used.
-        save_path: Output file path without extension. If empty, file+'_simple.h5' is used.
-    """
-    beam = ParticleGroup(file + '.h5')
-    
-    N = np.size(beam.x)
-    N = N if n==0 else n
-    charge = beam.charge
-    data = {'x': np.zeros(N), 'px': np.zeros(N), 'y': np.zeros(N), 'py': np.zeros(N), 'z': np.zeros(N), 'pz': np.zeros(N), 't': np.zeros(N), 'status': np.ones(N).astype(int), 'weight': np.ones(N)*charge/N, 'species': 'electron', 'id': np.arange(N).astype(int)}
-    P1 = ParticleGroup(data = data)
-    
-    Pslice = cut_length(beam, length = 1e-7)
-    
-    P1.x = np.random.normal(0, 1*moment(beam.x, moment=2) ** 0.5, N)
-    P1.y = np.random.normal(0, 1*moment(beam.y, moment=2) ** 0.5, N)
-    P1.px = np.random.normal(0, 1*moment(beam.px, moment=2) ** 0.5, N)
-    P1.py = np.random.normal(0, 1*moment(beam.py, moment=2) ** 0.5, N)
-    P1.pz = np.random.normal(np.mean(beam.pz), 1*moment(Pslice.pz, moment=2) ** 0.5, N)
-    P1.t = gennorm.rvs(4, size=N)*((moment(beam.t, moment=2)/(gamma(3/4)/gamma(1/4))) ** 0.5)
-    
-    match_impact_file = file + '_simple' + '.h5' if save_path=='' else save_path + '.h5'
-    P1.write(match_impact_file)
-    return P1
-
-
-def make_simple_bunch_standalone(N = 0, meanPzMeV = 125 , moments=[0.3e-3, 0.2e-3, 0.4e-3, 0.2e-3, 0.58e-3, 0], charge = 1e-9, save_path = '', means=[0,0,0,0,0,0]):
-    """Create a Gaussian bunch from explicit statistical moments.
-
-    Parameters:
-        N: Number of macro particles.
-        meanPzMeV: Mean longitudinal momentum in MeV/c.
-        moments: RMS values in x, xp, y, yp, z, pz.
-        charge: bunch charge.
-        save_path: Output file path without extension.
-        means: Mean values for x, xp, y, yp, z, pz.
-
-    Returns:
-        ParticleGroup: Generated bunch.
-    """
-
-    N = int(N)
-    data = {'x': np.zeros(N), 'px': np.zeros(N), 'y': np.zeros(N), 'py': np.zeros(N), 'z': np.zeros(N), 'pz': np.zeros(N), 't': np.zeros(N), 'status': np.ones(N).astype(int), 'weight': np.ones(N)*charge/N, 'species': 'electron', 'id': np.arange(N).astype(int)}
-    P1 = ParticleGroup(data = data)
-    
-    P1.x = np.random.normal(means[0], moments[0], N)
-    P1.px = np.random.normal(means[1], moments[1]*meanPzMeV*1e6, N)
-    P1.y = np.random.normal(means[2], moments[2], N)
-    P1.py = np.random.normal(means[3], moments[3]*meanPzMeV*1e6, N)
-    P1.t = np.random.normal(means[4], moments[4], N)/3e8
-    P1.pz = np.random.normal(meanPzMeV*1e6, moments[5], N)
-    
-    match_impact_file = save_path + '.h5'
-    P1.write(match_impact_file)
-    return P1
-
-def make_simple_bunch_theory_from_bunch_sims(bunch_file, mean_lattice_P0C_MeV, means_shift=[0,0,0,0,0,0]):
-    """Convert a BMAD bunch into theory coordinates for map-based calculations.
-
-    Parameters:
-        bunch_file: Base path of the bunch file without extension.
-        mean_lattice_P0C_MeV: Reference lattice momentum in MeV/c (the bunch will have this <pz>).
-        means_shift: Shifts to apply to x, xp, y, yp, z, delta.
-
-    Returns:
-        np.ndarray: Nx6 array in the order [x, xp, y, yp, z, delta].
-    """
-    sim_bunch = ParticleGroup(bunch_file+".h5")
-    return np.stack((sim_bunch.x+means_shift[0], sim_bunch.xp+means_shift[1], sim_bunch.y+means_shift[2], sim_bunch.yp+means_shift[3], -3e8*sim_bunch.t, (sim_bunch.pz*1e-6-mean_lattice_P0C_MeV)/mean_lattice_P0C_MeV), axis=1)
+import os
 
 
 ## Modify the bunch as a whole (sizes, means, chirps, correlations)
@@ -181,6 +43,7 @@ def modifyInputBeamSimple(inputBeamFilePath, numMacroParticles = None, timeCente
         
     return P
 
+
 def sqrtm_psd(M, tol=1e-14):
     """Compute the positive-semidefinite square root of a symmetric matrix.
     
@@ -190,6 +53,7 @@ def sqrtm_psd(M, tol=1e-14):
     w, V = np.linalg.eigh(M)
     w_clipped = np.clip(w, 0.0, None)  # allow zero
     return V @ np.diag(np.sqrt(w_clipped)) @ V.T, w
+
 
 def invsqrtm_psd(M, tol=1e-14):
     """Compute the inverse square root of a symmetric matrix, with small eigenvalues treated as zero.
@@ -354,6 +218,7 @@ def edit_bunch_parameters_from_PG(P_arg, pzMeV=None, moments=[None, None, None, 
     P.write(path_to_write+".h5")
     return P
 
+
 def edit_bunch_parameters(file_ext, pzMeV=None, moments=[None,None,None,None,None,None], correlations=[None,None,None], means=[0,0,0,0,0], charge=-1,
                           betaX=None, alphaX=None, emittanceX=None, betaY=None, alphaY=None, emittanceY=None, path_to_write='temp_beam/temp_e'):
     '''Edit the bunch parameters.
@@ -368,6 +233,7 @@ def edit_bunch_parameters(file_ext, pzMeV=None, moments=[None,None,None,None,Non
     '''
     return edit_bunch_parameters_from_PG(ParticleGroup(file_ext + ".h5"), pzMeV=pzMeV, moments=moments, correlations=correlations, means=means, charge=charge,
                                   betaX=betaX, alphaX=alphaX, emittanceX=emittanceX, betaY=betaY, alphaY=alphaY, emittanceY=emittanceY, path_to_write=path_to_write)
+
 
 def cut_length(particle_group, length = 0, drift_to_z = True):
     """Return a slice of the beam around its mean arrival time.
@@ -393,3 +259,333 @@ def cut_length(particle_group, length = 0, drift_to_z = True):
     if not drift_to_z:
         Ptemp.drift_to_t()
     return Ptemp
+
+
+def modifyAndSaveInputBeam(
+    inputBeamFilePath,
+    betaX = None,
+    alphaX = None,
+    betaY = None,
+    alphaY = None,
+    numMacroParticles = None,
+    timeCenterTF = True,
+    outputBeamFilePath = None
+):
+    """
+    Modify and save a particle beam file with optional downsampling, time centering, and Twiss parameter matching.
+
+    Parameters
+    ----------
+    inputBeamFilePath : str
+        Path to the input beam file (HDF5 format) to be loaded as a ParticleGroup.
+    betaX : float, optional
+        Target beta function in the x-plane for Twiss matching. If None, no matching is performed.
+    alphaX : float, optional
+        Target alpha function in the x-plane for Twiss matching. If None, no matching is performed.
+    betaY : float, optional
+        Target beta function in the y-plane for Twiss matching. If None, no matching is performed.
+    alphaY : float, optional
+        Target alpha function in the y-plane for Twiss matching. If None, no matching is performed.
+    numMacroParticles : int, optional
+        If specified, randomly downsample the beam to this number of macroparticles, rescaling weights accordingly.
+    timeCenterTF : bool, default True
+        If True, center the time coordinate of the beam (subtract mean t from all particles).
+    outputBeamFilePath : str, optional
+        Path to save the modified beam file. If None, saves to './beams/activeBeamFile.h5' in the current working directory.
+
+    Returns
+    -------
+    ParticleGroup
+        The modified ParticleGroup object.
+
+    Notes
+    -----
+    - Downsampling is performed by random selection and weight rescaling, preserving the distinction between driver/witness if present.
+    - Time centering assumes all particle weights are equal or nearly equal.
+    - Twiss matching is applied independently to x and y planes if the corresponding parameters are provided.
+    - The function writes the modified beam to disk and also returns the ParticleGroup object for further use.
+    """
+
+    #Import
+    P = ParticleGroup(inputBeamFilePath)
+
+    #Downsample
+    #if numMacroParticles:
+    #    P.data.update(resample_particles(P, n=numMacroParticles))
+    #PROBLEM! Built-in resampling smushes everything down to a single particle weight. No good for me since I'm using those to keep track of driver/witness
+    #Instead, since the weights are ~equal, just pick a random subset then rescale their weights
+    initialImportSize = np.size(P.x)
+    if numMacroParticles:
+        numMacroParticles = int(numMacroParticles)
+        P = P[random.sample(range(initialImportSize), numMacroParticles)]
+        P.weight = P.weight * (initialImportSize / numMacroParticles)
+    
+
+    #Time center
+    if timeCenterTF:
+        P.t=P.t-np.mean(P.t) #This is OK because present beam doesn't have different weights; np.unique(P.weight)
+
+    #Apply linear matching
+    if (betaX is not None) and (alphaX is not None):
+        P.twiss_match(
+              plane='x',
+              beta = betaX,
+              alpha = alphaX,
+              inplace=True)
+
+    if (betaY is not None) and (alphaY is not None):
+        P.twiss_match(
+              plane='y',
+              beta = betaY,
+              alpha = alphaY,
+              inplace=True)
+
+    filePath = os.getcwd()
+
+    if not outputBeamFilePath:
+        P.write(f'{filePath}/beams/activeBeamFile.h5')
+    else:
+        P.write(outputBeamFilePath)
+
+    #Also return the beam object
+    return P
+
+
+    #For backwards compatibility, return to activeBeamFile. Might be unnecessary
+    # tao.cmd(f'set beam_init position_file={filePathGlobal}/beams/activeBeamFile.h5')
+    # tao.cmd('reinit beam')
+
+# def trackBeamLEGACY(tao):
+#     #This is the pre-2024-08-23 version of trackBeam(), retained for debugging purposes. Can be deleted
+    
+#     tao.cmd('set global track_type = beam') #set "track_type = single" to return to single particle
+#     tao.cmd('set global track_type = single') #return to single to prevent accidental long re-evaluation
+
+
+def ballisticPropagation(P, distance):
+    """ Propagates ParticleGroup P ballistically over some distance
+    
+    Parameters
+    ----------
+    P: OpenPMD ParticleGroup
+    distance: propagation distance [m]
+
+    """
+    P.x = P.x + (P['px']/P['pz']) * distance
+    P.y = P.y + (P['py']/P['pz']) * distance
+    P.t = P.t + distance/299792458
+
+
+def nudgeMacroparticleWeights(
+    PInput,
+    trailingBunchFraction = None,
+    trailingBunchType = None
+):
+    """
+    This is NOT a robust function. Don't trust it to do what you want
+    Presently splits based on z and a user-specified charge ratio. Lots of things can go wrong if you aren't careful!
+    
+    Borrowing stuff from 2024-03-29_nudgeMacroparticleWeights.ipynb
+    """
+
+    P = PInput.copy()
+
+    zVals = (P["delta_z"]).copy()
+    zVals = np.sort(zVals)
+    
+    splitZ = zVals[int(trailingBunchFraction * len(zVals))] 
+    
+    
+    
+    startingWeight = P.weight[0]
+    startingWeight
+    
+    witnessWeight = 0.999*startingWeight
+    driverWeight = 1.001*startingWeight
+    
+    if trailingBunchType == "witness":
+        trailingBunchWeight = witnessWeight
+        leadingBunchWeight = driverWeight
+    if trailingBunchType == "driver": 
+        trailingBunchWeight = driverWeight
+        leadingBunchWeight = witnessWeight
+    
+    newWeightArr = np.full(np.size(P.weight), -1.1)
+    for i in range(np.size(newWeightArr)):
+        if P["delta_z"][i] < splitZ:
+            newWeightArr[i] = trailingBunchWeight
+        else:
+            newWeightArr[i] = leadingBunchWeight
+    
+    P.weight = newWeightArr
+
+    return P
+
+
+def getDriverAndWitness(P):
+    """Splits a beam by unique weights into  drive and witness beam objects
+    
+    See, e.g. "2024-07-01 Nudge Macroparticle Weights.ipynb" for details
+    """
+    
+    weights = np.sort(np.unique(P.weight))
+    if len(weights) != 2:
+        print("WARNING! Expected drive/witness structure not found")
+        return
+    PWitness = P[P.weight == weights[0]]
+    PDrive = P[P.weight == weights[1]]
+    return PDrive, PWitness
+
+
+def centerBeam(
+    P,
+    centerType = "median",
+    assertEnergy = None
+):
+    """
+    Shifts x, y, xp, and yp of a beam to zero
+    centerType is either "median" or "mean"
+    """
+    
+    PMod = P
+    if centerType == "median":
+        PMod.x = P.x - np.median(P.x)
+        PMod.y = P.y - np.median(P.y)
+        PMod.px = P.px - np.median(P.px)
+        PMod.py = P.py - np.median(P.py)
+        if assertEnergy:
+            PMod.pz = P.pz * assertEnergy / np.median(P.pz)
+        
+        return PMod
+        
+    if centerType == "mean":
+        PMod.x = P.x - np.mean(P.x)
+        PMod.y = P.y - np.mean(P.y)
+        PMod.px = P.px - np.mean(P.px)
+        PMod.py = P.py - np.mean(P.py)
+        if assertEnergy:
+            PMod.pz = P.pz * assertEnergy / np.mean(P.pz)
+                    
+        return PMod
+
+    return
+
+
+def collimateBeam(
+    P,
+    allCollimatorRules = None
+):
+    """
+    allCollimatorRules is a list of lists. Each sublist should have exactly two elements for the lower and upper x position of a collimator
+    Arbitrarily many collimators can be defined this way; therefore it works for notch and/or jaw collimators
+    """
+    PMod = P.copy()
+
+
+    for collimatorRange in allCollimatorRules:
+
+        print(collimatorRange)
+        all_indices = np.arange(len(PMod.x))
+        killedIndices = np.where(np.logical_and(PMod.x > collimatorRange[0], PMod.x < collimatorRange[1]))[0]
+        survivingIndices = np.setdiff1d(all_indices, killedIndices)
+        
+        # OpenPMD checks the length so I can't just remove the "killed" particles
+        # Also, for compatibility, I don't want to change either the weight or status of the killed particles
+        filtered_data = {
+            "x": PMod.x[survivingIndices],
+            "y": PMod.y[survivingIndices],
+            "z": PMod.z[survivingIndices],
+            "px": PMod.px[survivingIndices],
+            "py": PMod.py[survivingIndices],
+            "pz": PMod.pz[survivingIndices],
+            "t": PMod.t[survivingIndices], 
+            "status": PMod.status[survivingIndices], 
+            "weight": PMod.weight[survivingIndices], 
+            "species": PMod.species
+        }
+        
+        # Create a new ParticleGroup instance with the filtered data
+        PMod = ParticleGroup(data=filtered_data)
+        print(f"New particle count: {len(PMod.x)}")
+        print(f"{len(PMod.x)}")
+
+    return PMod
+
+
+def sortIndices(lst):
+    #Returns the indices of the sorted elements, e.g. [1, 3, 5, 2, 4] --> [0, 3, 1, 4, 2]
+    return [i for i, _ in sorted(enumerate(lst), key=lambda x: x[1])]
+
+
+def sliceBeam(
+    P,
+    sortKey = None,
+    numBeamlets = None
+):
+    """Sort a beam by sortKey, then slice it into numBeamlets of equal count"""
+    sortedIndices = sortIndices(P[sortKey])
+    
+    subsetIndices = np.array_split(sortedIndices, numBeamlets)
+    
+    resultBeamlets = []
+    
+    for activeSubsetIndices in subsetIndices:
+        PMod = P.copy()
+        
+        # OpenPMD checks the length so I can't just remove the "killed" particles
+        # Also, for compatibility, I don't want to change either the weight or status of the killed particles
+        filtered_data = {
+            "x": PMod.x[activeSubsetIndices],
+            "y": PMod.y[activeSubsetIndices],
+            "z": PMod.z[activeSubsetIndices],
+            "px": PMod.px[activeSubsetIndices],
+            "py": PMod.py[activeSubsetIndices],
+            "pz": PMod.pz[activeSubsetIndices],
+            "t": PMod.t[activeSubsetIndices], 
+            "status": PMod.status[activeSubsetIndices], 
+            "weight": PMod.weight[activeSubsetIndices], 
+            "species": PMod.species
+        }
+        
+        # Create a new ParticleGroup instance with the filtered data
+        PMod = ParticleGroup(data=filtered_data)
+        #print(f"New particle count: {len(PMod.x)}")
+        #print(f"{len(PMod.x)}")
+    
+        resultBeamlets.append(PMod)
+
+    return resultBeamlets
+
+
+def getSingleBeamSlice(
+    P,
+    sortKey = None,
+    minVal = None,
+    maxVal = None
+):
+    """Return a beamlet of particles which satisfy the inequality """
+
+    # Get indices where sortKey is within the given range
+    mask = (P[sortKey] >= minVal) & (P[sortKey] <= maxVal)
+    
+    if not np.any(mask):
+        raise ValueError("No particles found in the specified range.")
+    
+    # Filter data based on the mask
+    filtered_data = {
+        "x": P.x[mask],
+        "y": P.y[mask],
+        "z": P.z[mask],
+        "px": P.px[mask],
+        "py": P.py[mask],
+        "pz": P.pz[mask],
+        "t": P.t[mask],
+        "status": P.status[mask],
+        "weight": P.weight[mask],
+        "species": P.species
+    }
+
+
+    PMod = ParticleGroup(data=filtered_data)
+
+    return PMod

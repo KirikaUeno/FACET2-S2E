@@ -1,39 +1,158 @@
-import math
-from scipy.stats import moment
-from scipy.stats import gennorm
-from scipy.special import gamma
-from scipy.optimize import curve_fit
-from scipy.ndimage import gaussian_filter1d
-import pprint
-from copy import copy
-import matplotlib.pyplot as plt
+"""Build and edit a Tao lattice from a FACET-II DAQ experiment dataset.
 
-#import mplstyle
-from matplotlib.ticker import AutoMinorLocator
-from matplotlib.gridspec import GridSpec, GridSpecFromSubplotSpec
+Holds the BMAD-element-to-EPICS-PV maps (quadrupoles, sextupoles, cavities,
+correctors, bends) and the functions that read a DAQ DATASET and push those
+values into the lattice.
 
-# from .UTILITY_quickstart import (
-#     initializeTao,
-#     trackBeam,
-#     getBeamAtElement,
-# )
-
-import numpy as np
-
-from .UTILITY_linacPhaseAndAmplitude import setLinacPhase, setLinacGradientAuto
-from .UTILITY_setLattice import setQuadkG, setSextkG
-
-from .UTILITY_linacPhaseAndAmplitude import matchStringWrapper
-
-"""Functions to edit a Tao lattice according to a FACET-II DAQ experiment dataset.
-
-This module holds the BMAD-element-to-EPICS-PV maps (quadrupoles,
-sextupoles, cavities, correctors, bends) and the functions that read a
-DAQ database (DATASET) and push those values into the lattice, either
-just for the energy profile or for the full magnet/corrector settings.
-
-Split out of the former functionsForSims.py.
+Moved from DAQdatasetToSimFunctions.py (all) and simulationFunctions.py
+(get_tao_from_experiment).
 """
+
+import os
+from pathlib import Path
+from Experimental_functions import DATASET
+import numpy as np
+from pmd_beamphysics import ParticleGroup
+
+from ..beam.generation import make_simple_bunch_standalone
+from ..beam.manipulation import edit_bunch_parameters
+from ..lattice.linac import setLinacPhase, setLinacGradientAuto
+from ..lattice.set_lattice import setQuadkG, setSextkG
+from .core import initializeTao
+from .energy import save_dipoles, treat_dipoles
+from .runs import set_beam, edit_energy_based_on_beam_all, run_initialized_sim_edit_bunch_energy, run_initialized_sim_edit_lattice_energy_for_dipoles, run_initialized_sim
+
+
+## Initialize and run a simulation
+
+
+### High end
+
+def get_tao_from_experiment(experiment="", scan_number="", date="", start='L0AFEND', finish='PR11375', filepath=None, locationsToSave = [],
+                            csrTF=False, lscTF=False, file_ext = "", energy=None, N_in_simple_bunch=5e4, N_to_use_from_file=None, tune_dipoles_to_125_335_4500_10000_MeV=False, tune_dipoles=True,
+                            correctors_coef=0, correctors_from_beg=False, run=True, gaussFromExternal=False, edit_only_energy_from_exp=False, energy_edit_on_beam=False, verbose=False,
+                            lattice='setLattice_configs/2024-10-22_oneBunch-Copy1.yml', moments=[None,None,None,None,None,None], means=[0,0,0,0,None], charge=1.6e-9, sr_wakes_on=False, lr_wakes_on=False,
+                            desired_beam_energies_for_the_feedback=None, desired_P0Cs_MeV=[None,None,None,None], grid_size=[32,32,32], lsc_method="slice", csr_method="1_dim", n_bin=32,
+                            edited_bunch_energy_at_checkpoints_MeV=[None, None, None, None], beam_edits=True):
+    '''
+    experiment: "BEAMPHYS" is an example.
+    scan_number: DAQ scan number. "14438" is an example.
+    date: the date when the scan was taken in a specific form. "/2026/20260121" is an example.
+
+    start: where the simulation starts. This 1) can affect the initial bunch energy (see "energy"), 2) determines the start for the energy_edit_on_beam and run_initialized_sim functions.
+    finish: determines the finish for the energy_edit_on_beam and run_initialized_sim functions.
+
+    filepath: Path to the FACET2-S2E repository (the folder with bmad/, beams/, setLattice_configs/, temp_beam/).
+    If None, it is taken from the location of the installed package (works with "pip install -e .").
+
+    lattice: additional lattice settings to use.
+
+    file_ext: the beam file. Not required (default is ""). If it is "", a Gaussian bunch will be created with "moments". "moments" in this case is required!
+    N_to_use_from_file: randomly choose N_to_use_from_file particles from the external bunch.
+    gaussFromExternal: if True, a Gaussian bunch will be created instead of the supplied bunch, with sizes being the same as in the supplied bunch.
+    alpha in this case is set to 0, and the emittance is changed accordingly.
+    N_in_simple_bunch: number of particles in the created Gaussian bunch (even if created from the external file with gaussFromExternal).
+
+    locationsToSave: Usually, tao saves the bunch to RAM (I believe). The beam will be saved to the disk at the locationsToSave entries.
+    Note that it will give an error if Tao does not save a provided location to RAM. To add the location to RAM, go to the quickstart -> initializeTao -> edit the "set beam add_saved_at" lines.
+
+    csrTF, lscTF, sr_wakes_on, lr_wakes_on: bool settings for the collective effects. Work separately.
+    grid_size: the grid size used by SC or CSR if they are 3d.
+    lsc_method: off, fft_3d or slice.
+    csr_method: off, steady_state_3d or 1_dim.
+    n_bin: number of longitudinal slices in the slice/1_dim methods.
+
+    energy: initial energy of the bunch in MeV (if positive number).
+    Set energy=-1 to use the energy from the beam file, or energy=None to use the energy from the lattice / experiment (if experiment and scan_number are provided).
+
+    moments: list of 6 numbers, the RMS sizes of the bunch in x, xp, y, yp, z, pz (in meters, radians, meters, radians, meters, MeV/c).
+    Set a moment to -1 to keep the same as in the input file (applicable to each number). Default is -1 for all.
+
+    means: list of 5 numbers, the means of the bunch in x, xp, y, yp, z (in meters, radians, meters, radians, meters).
+    Set a mean to -1 to keep the same as in the input file (applicable to each number). Default is [0,0,0,0,-1] (I needed a centered bunch. Change this if needed).
+    z and t are set to 0 in the set_beam() by default.
+    
+    desired_P0Cs_MeV: This settings allows using different cavity energies (from 125, 335, 4500, and 10000) while preserving the linac geometry.
+    For example, setting it to [124, None, None, None], will adjust the injector and L1 cavities to have [124, 335, 4500, 10000] MeV. This will result in a non-zero <x> inside of the dogleg.
+
+    energy_edit_on_beam: The beam feedback. If collective effects slow the bunch down, the cavity voltages will be adjusted to match the desired_beam_energies_for_the_feedback.
+    desired_beam_energies_for_the_feedback: <pz> in eV that you would like to see before the dogleg, bc11, bc14, and bc20 (see the energy_edit_on_beam function).
+
+    correctors_coef: what corrector strength to use from the DAQ database. -1/10 for the experimental values; 0 to turn them off.
+    correctors_from_beg: if True, all DAQ saved correctors will be used. If False, correctors will be enabled from BX0FBEG.
+
+    edit_only_energy_from_exp: if true, the quadrupoles, sextupoles, dipoles, and correctors will not be loaded from the DAQ database.
+
+    tune_dipoles: if True, the dipole fields are adjusted using DB_FIELD to the corresponding angle and rho from the .tao lattice at some energies:
+    Will tune to the DAQ values (it saves energy) if experiment and scan_number are provided, and to the default [125, 335, 4500, 10000] otherwise.
+    tune_dipoles_to_125_335_4500_10000_MeV: if True, the dipole magnetic fields are set to [125, 335, 4500, 10000] even if the DAQ is provided.
+    If False, the simulation is the same as Nathan's, where the dipole strength changes with the lattice energy.
+    '''
+    if filepath is None:
+        # src/FACET2_S2E/simulationFunctions.py -> repository root (same rule as initializeTao)
+        filepath = str(Path(__file__).resolve().parents[3])
+    if not os.path.isfile(f"{filepath}/bmad/models/f2_elec/tao.init"):
+        raise FileNotFoundError(f'No FACET2-S2E lattice found in "{filepath}". Pass filepath="/path/to/FACET2-S2E", '
+                                'or install the package with "pip install -e ." so that the repository can be found automatically.')
+
+    tao = initializeTao(filePath = filepath, loadCustomLatticeTF=True, csrTF=csrTF, lscTF=lscTF, latticeFile=lattice, bmad_grid_size=grid_size, verbose=verbose, sr_wakes_on=sr_wakes_on, lr_wakes_on=lr_wakes_on, lsc_method=lsc_method, csr_method=csr_method, n_bin=n_bin, autoLoadActiveFile=False)
+    
+    dipoleEnergies_MeV = [125, 335, 4500, 10000]
+    # copy the experiment data
+    if experiment!="" and scan_number!="":
+        ds = DATASET("", experiment, scan_number, pathfull = "".join(["/sdf/data/ad/fs/transition/nfs/slac/g/facet/matlab/data_prod/nas-li20-pm00/", experiment, date]))
+        # check if magnets data is not needed. Dogleg energy is always 125 MeV (maybe need to change to the mean of 'BEND_IN10_661_BDES' and 'BEND_IN10_751_BDES' (they are in GeV), so that the magnet strengths are actually correct)
+        if edit_only_energy_from_exp:
+            tao = edit_energy_tao_based_on_experiment_database(tao, ds)
+        else:
+            tao = edit_tao_based_on_experiment_database(tao, ds, correctors_coef=correctors_coef, correctors_from_beg=correctors_from_beg)
+            dipoleEnergies_MeV = save_dipole_energies_from_the_DAQ_database(ds)
+
+    if tune_dipoles_to_125_335_4500_10000_MeV:
+        dipoleEnergies_MeV = [125, 335, 4500, 10000]
+
+    fields = save_dipoles(tao, dipoleEnergies_MeV)
+
+    # tao.cmd(f'set global lattice_calc_on = T')
+    # deal with the bunch
+    current_e_start = tao.ele_gen_attribs(start)["P0C"]*1e-6 if energy is None else energy
+    folder = filepath + "/"
+    file = folder+ "temp_beam/temp"
+    if beam_edits:
+        if file_ext=='':
+            moments = [0 if moment is None else moment for moment in moments]
+            make_simple_bunch_standalone(N = N_in_simple_bunch, meanPzMeV = current_e_start, moments=moments, save_path = file, charge=charge)
+        else:
+            energy_from_file = None if energy==-1 else current_e_start
+            edit_bunch_parameters(file_ext, pzMeV=energy_from_file, moments=moments, means=means, charge=charge, path_to_write=file)
+            if gaussFromExternal:
+                P = ParticleGroup(file+".h5")
+                moments = [np.std(P.x),np.std(P.xp),np.std(P.y),np.std(P.yp),np.std(P.t)*3e8,np.std(P.pz)]
+                make_simple_bunch_standalone(N = N_in_simple_bunch, meanPzMeV = current_e_start, moments=moments, save_path = file)
+                edit_bunch_parameters(file, pzMeV=current_e_start, moments=moments, means=means, charge=charge, path_to_write=file)
+    set_beam(tao, file, numMacroParticles=None if (gaussFromExternal or file_ext=='') else N_to_use_from_file)
+
+    # energy feedback on beam
+    if energy_edit_on_beam:
+        tao = edit_energy_based_on_beam_all(tao, start, file, verbose=verbose, desired_beam_energies=desired_beam_energies_for_the_feedback, finalnumMacroParticles=N_to_use_from_file, tune_dipoles=tune_dipoles, dipole_fields=fields)
+
+    if tune_dipoles:
+        tao = treat_dipoles(tao, fields)
+
+    # run the sim and save the bunch
+    if run:
+        pre = 'temp_beam/'
+        suf = 'temp'
+        if locationsToSave == []:
+            locationsToSave = [start, finish]
+        if edited_bunch_energy_at_checkpoints_MeV!=[None, None, None, None]:
+            tao = run_initialized_sim_edit_bunch_energy(tao, start, finish, edited_bunch_energy_at_checkpoints_MeV=edited_bunch_energy_at_checkpoints_MeV, pre=pre, suf=suf, locations=locationsToSave)
+        elif desired_P0Cs_MeV!=[None, None, None, None]:
+            tao = run_initialized_sim_edit_lattice_energy_for_dipoles(tao, locationsToSave[0], locationsToSave[-1], pre, suf, locationsToSave, desired_P0Cs_MeV=desired_P0Cs_MeV)
+        else:
+            tao = run_initialized_sim(tao, locationsToSave[0], locationsToSave[-1], pre, suf, locationsToSave)
+    return tao
+
 
 ## Edit lattice according to experiment
 
@@ -106,6 +225,7 @@ bmad_quad_to_pv_map = {
     'Q2D': ['nonBSA_List_S20Magnets', 'LI20_LGPS_3091_BACT']
 }
 
+
 bmad_quad_to_pv_map_boost = {
     # s20
     'Q1EL': ['nonBSA_List_S20Magnets', 'LI20_LGPS_2061_BACT'],
@@ -127,6 +247,7 @@ bmad_quad_to_pv_map_boost = {
     'Q1ER': ['nonBSA_List_S20Magnets', 'LI20_LGPS_2441_BACT']
 }
 
+
 # sextupoles
 bmad_sextupoles_to_pv_map = {
     'S1EL': ['nonBSA_List_S20Magnets', 'LI20_LGPS_2145_BACT'],
@@ -139,16 +260,19 @@ bmad_sextupoles_to_pv_map = {
     'S1ER': ['nonBSA_List_S20Magnets', 'LI20_LGPS_2365_BACT']
 }
 
+
 # sextupole offsets (in mm) (s1l, s2l, s2r, s1r)
 sextupole_offsets_x_from_daq = [['nonBSA_List_S20Magnets', 'SIOC_SYS1_ML00_AO552'],
                                 ['nonBSA_List_S20Magnets', 'SIOC_SYS1_ML00_AO502'],
                                 ['nonBSA_List_S20Magnets', 'SIOC_SYS1_ML00_AO517'],
                                 ['nonBSA_List_S20Magnets', 'SIOC_SYS1_ML00_AO567']]
 
+
 sextupole_offsets_y_from_daq = [['nonBSA_List_S20Magnets', 'SIOC_SYS1_ML00_AO557'],
                                 ['nonBSA_List_S20Magnets', 'SIOC_SYS1_ML00_AO507'],
                                 ['nonBSA_List_S20Magnets', 'SIOC_SYS1_ML00_AO522'],
                                 ['nonBSA_List_S20Magnets', 'SIOC_SYS1_ML00_AO572']]
+
 
 # injector cavities
 def get_l0a_phase(database):
@@ -156,35 +280,42 @@ def get_l0a_phase(database):
     """
     return np.mean(database._data["scalars"]["nonBSA_List_S10RF"]['KLYS_LI10_31_SFB_PDES'])-20
 
+
 def get_l0a_ampl(database):
     """Read the L0A amplitude from the database and convert to Tao voltage units.
     """
     return np.mean(database._data["scalars"]["nonBSA_List_S10RF"]['KLYS_LI10_31_ADES'])*2.864664e6
+
 
 def get_l0b_phase(database):
     """Read the L0B phase from the database.
     """
     return np.mean(database._data["scalars"]["nonBSA_List_S10RF"]['KLYS_LI10_41_SFB_PDES'])
 
+
 def get_l0b_ampl(database):
     """Read the L0B amplitude from the database and convert to Tao voltage units.
     """
     return np.mean(database._data["scalars"]["nonBSA_List_S10RF"]['KLYS_LI10_41_ADES'])*2.864664e6
+
 
 def get_l1_phase(database):
     """Read the L1 cavity phase from the database.
     """
     return np.mean(database._data["scalars"]["nonBSA_List_LINAC_KLYS"]['KLYS_LI11_11_SSSB_PDES'])
 
+
 def get_l2_phase(database):
     """Read the L2 cavity phase from the database.
     """
     return np.mean(database._data["scalars"]["nonBSA_List_LINAC_KLYS"]['LI14_SBST_1_PHAS'])
 
+
 def get_l3_phase(database):
     """Read the L3 cavity phase from the database.
     """
     return np.mean(database._data["scalars"]["nonBSA_List_LINAC_KLYS"]['LI19_SBST_1_PHAS'])
+
 
 # L3
 bmad_cavity_to_pv_map = {
@@ -192,6 +323,7 @@ bmad_cavity_to_pv_map = {
     'K19_8A2': ['nonBSA_List_S20Magnets', 'LI19_KLYS_81_ADES'],
     'K19_8A3': ['nonBSA_List_S20Magnets', 'LI19_KLYS_81_ADES']
 }
+
 
 bmad_corrector_to_pv_map_before_dogleg = {
     # Correctors before L0AFEND
@@ -214,6 +346,8 @@ bmad_corrector_to_pv_map_before_dogleg = {
     'XC10641': ["nonBSA_List_S10", 'XCOR_IN10_641_BDES'],
     'YC10642': ["nonBSA_List_S10", 'YCOR_IN10_642_BDES'],
 }
+
+
 bmad_corrector_to_pv_map = {    
     # Correctors after the dogleg beginning
     'XC10721': ["nonBSA_List_S10", 'XCOR_IN10_721_BDES'],
@@ -299,7 +433,7 @@ def edit_tao_based_on_experiment_database(tao, dataset, correctors_coef=-1/10, c
     '''
     # Imported here (rather than at module level) to avoid a circular import with
     # simulationFunctions, which itself imports functions from this module.
-    from .simulationFunctions import setAllWChicaneSextupolesXOffsets, setAllWChicaneSextupolesYOffsets
+    from ..lattice.set_lattice import setAllWChicaneSextupolesXOffsets, setAllWChicaneSextupolesYOffsets
 
     # tao.cmd(f'set ele L0BF PHI0 = {l0bphase / 360.}')
     # tao.cmd(f'set ele L0BF VOLTAGE = {(61.0e6 + (mean_energy_MeV_lattice-125)*1e6) / math.cos(2*math.pi*l0bphase/360)}')
@@ -348,6 +482,7 @@ def edit_tao_based_on_experiment_database(tao, dataset, correctors_coef=-1/10, c
     
     return tao
 
+
 # bends
 bmad_bend_to_pv_map = {
     # s10
@@ -381,8 +516,10 @@ bmad_bend_to_pv_map = {
     'WIGE2': ["nonBSA_List_S20Magnets", 'LI20_BTRM_2420_BACT']
 }
 
+
 def get_mean_energy_of_some_dipoles(dataset, dipoles):
     return np.mean(np.array([np.mean(dataset._data["scalars"][bmad_bend_to_pv_map[dipole][0]][bmad_bend_to_pv_map[dipole][1]]) for dipole in dipoles]))
+
 
 def save_dipole_energies_from_the_DAQ_database(dataset):
     bendEnergiesMeV=[125, 335, 4500, 10000]

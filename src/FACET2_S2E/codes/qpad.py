@@ -1,6 +1,6 @@
 
 import importlib
-from . import UTILITY_QPAD_PICMI as picmi
+from . import qpad_picmi as picmi
 import numpy as np
 from pmd_beamphysics import ParticleGroup
 import h5py

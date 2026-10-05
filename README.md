@@ -74,8 +74,8 @@ The notebooks in the repository demonstrate typical workflows:
 
 ### Other features
 
-- `UTILITY_setLattice` functions to translate between the language and units of the FACET-II EPICS control system and simulation
-- `UTILITY_linacPhaseAndAmplitude` which conveniently phases and sets the gradients of the linacs
+- `lattice.set_lattice` functions to translate between the language and units of the FACET-II EPICS control system and simulation
+- `lattice.linac` which conveniently phases and sets the gradients of the linacs
 - Plotting tools for displaying beams and the beamline itself
 - Twiss optimizers for the final focus and golden lattice matching
 - Infrastructure for dealing with two-bunch operation
@@ -119,7 +119,14 @@ impact/                  IMPACT‑T configuration files
 other_configs/           Atypical configurations including misalignment and steering solutions
 qpad/                    QPAD configuration files
 setLattice_configs/      Reference configurations
-src/FACET2_S2E/          Main package source code with utility functions
+src/FACET2_S2E/          Main package source code, sorted by purpose:
+  ├── simulation/        Tao initialization and tracking, simulation runs, energy tuning,
+  │                      lattices from DAQ experiment data, scans
+  ├── lattice/           setLattice and EPICS-unit element control, linac phasing,
+  │                      optics/matrices, final focus solver
+  ├── beam/              Bunch generation, manipulation, statistics, microbunching
+  ├── plotting/          Phase-space, bunch summary and floorplan plots; styling
+  └── codes/             Interfaces to external codes (IMPACT-T, QPAD)
 src/Experimental_functions/  FACET-II DAQ data analysis (third-party, see Acknowledgements)
 tests/                   Automated test suite (unit, integration, system tests)
   ├── unit/              Unit tests for core functions
@@ -383,15 +390,32 @@ with Pool(8) as pool:
     results = pool.map(worker, config_list)
 ```
 
-### Utility Modules
+### Package Modules
 
-Additional functionality is available in specialized modules:
+Everything in `FACET2_S2E.__all__` is available directly as `qs.<name>`. The code lives in:
 
-- **`UTILITY_setLattice.py`** – Control system unit conversions
-- **`UTILITY_linacPhaseAndAmplitude.py`** – Linac phasing utilities
-- **`UTILITY_modifyAndSaveInputBeam.py`** – Beam file manipulation
-- **`UTILITY_QPAD.py`** – QPAD interface and visualization
-- **`UTILITY_plotLattice.py`** – Lattice visualization tools
+| Module | Contents |
+|---|---|
+| `simulation.core` | `initializeTao`, `trackBeam`, `getBeamAtElement`, `writeBeam`, collective-effect settings |
+| `simulation.config` | `loadConfig`, `applyOtherConfig`, auto energy-compensation switches |
+| `simulation.runs` | `set_beam`, `run_initialized_sim*`, `edit_energy_based_on_beam_all` |
+| `simulation.energy` | `tune_to_P0Cs`, dipole field handling, per-linac energy edits |
+| `simulation.experiment` | `get_tao_from_experiment`, BMAD-to-EPICS-PV maps, DAQ-dataset lattice edits |
+| `simulation.scans` | `make_1d_scan`, `make_comparison_dz_2nd_order` |
+| `lattice.set_lattice` | `setLattice`, get/set helpers in control-system units (kG, GeV/c), offsets |
+| `lattice.linac` | Linac phasing and gradient utilities |
+| `lattice.optics` | Transfer matrices, `get_rij`/`get_tijk`, `calcBMAG`, `launchTwissCorrection` |
+| `lattice.final_focus` | `finalFocusSolver` |
+| `beam.generation` | `make_simple_bunch*` |
+| `beam.manipulation` | `modifyAndSaveInputBeam`, `edit_bunch_parameters*`, center/collimate/slice/cut |
+| `beam.analysis` | Smallest-interval spot sizes and emittances, `getBeamSpecs`, `generalizedEmittanceSolver` |
+| `beam.microbunching` | `addLHmodulation`, `make_modulated_bunch`, spectra and microbunching gain |
+| `plotting.phase_space` | `plotMod`, `slicePlotMod` |
+| `plotting.bunch_summary` | `plotModKladov`, `print_result*` |
+| `plotting.floorplan` | `floorplanPlot` |
+| `plotting.style` | `enable_plt_styling`, `make_a_plot` |
+| `codes.impact` | IMPACT-T interface |
+| `codes.qpad`, `codes.qpad_picmi` | QPAD interface and visualization |
 
 
 For complete examples, see the notebooks in `examples/`.

@@ -1,6 +1,15 @@
+"""Set the lattice in FACET-II control-system language and units.
+
+``setLattice`` is the all-in-one function for lattice changes; the get/set
+helpers translate between EPICS units (kG, GeV/c) and Bmad.
+
+Moved from UTILITY_setLattice.py; the chicane-sextupole offset setters come
+from simulationFunctions.py.
+"""
+
 import yaml
 
-from .UTILITY_linacPhaseAndAmplitude import getLinacMatchStrings, setLinacPhase, setLinacGradientAuto
+from .linac import getLinacMatchStrings, setLinacPhase, setLinacGradientAuto
 
 
 #This is the all-in-one function that should make any and all changes to the lattice
@@ -160,6 +169,7 @@ def setLattice(
 
     return
 
+
 def setLinacsHelper(tao, L0BPhaseSet, L0BEnergyOffset, L1PhaseSet, L1EnergyOffset, L2PhaseSet, L2EnergyOffset, L3PhaseSet, L3EnergyOffset):
     """
     Helper function to set linac phases and gradients for all major linac sections.
@@ -220,6 +230,7 @@ def setBendkG(tao, bendName, integratedFieldkG):
 
     return
 
+
 def getBendkG(tao, bendName):
     """Get bend's present EPICS-style integrated field. This involves a sign flip!"""
     bendLength = tao.ele_gen_attribs(bendName)["L"]
@@ -231,6 +242,7 @@ def getBendkG(tao, bendName):
     #Bmad uses opposite sign!
     return -1 * bendIntegratedFieldkG
 
+
 def setQuadkG(tao, quadName, integratedFieldkG):
     """Set quad based on EPICS-style integrated field. This involves a sign flip!"""
     quadLength = tao.ele_gen_attribs(quadName)["L"]
@@ -241,6 +253,7 @@ def setQuadkG(tao, quadName, integratedFieldkG):
     tao.cmd(f"set ele {quadName} B1_GRADIENT = {-1 * desiredGradientkG/10}")
 
     return
+
 
 def getQuadkG(tao, quadName):
     """Get quad's present EPICS-style integrated field. This involves a sign flip!"""
@@ -265,6 +278,7 @@ def setSextkG(tao, sextName, integratedFieldkG):
 
     return
 
+
 def getSextkG(tao, sextName):
     """Get sextupoles's present EPICS-style integrated field. This involves a sign flip!"""
     sextLength = tao.ele_gen_attribs(sextName)["L"]
@@ -276,15 +290,18 @@ def getSextkG(tao, sextName):
     #Bmad uses opposite sign!
     return -1 * sextIntegratedFieldkG
 
+
 def setXOffset(tao, eleName, offset):
     tao.cmd(f"set ele {eleName} X_OFFSET = {offset}")
 
     return
 
+
 def setYOffset(tao, eleName, offset):
     tao.cmd(f"set ele {eleName} Y_OFFSET = {offset}")
 
     return
+
 
 def setKickerkG(tao, kickerName, integratedFieldkG):
     """Set HKICKER or VKICKER based on EPICS-style integrated field"""
@@ -292,6 +309,7 @@ def setKickerkG(tao, kickerName, integratedFieldkG):
     tao.cmd(f"set ele {kickerName} BL_KICK = {integratedFieldkG/10}")
 
     return
+
 
 def getKickerkG(tao, kickerName):
     """Return HKICKER or VKICKER EPICS-style integrated field"""
@@ -316,6 +334,7 @@ def setBendGeVc(tao, bendName, desiredBendGeVc):
         "Not a special case bend"
         return
 
+
 def getBendGeVc(tao, bendName):
     """
     Based on the bend's setting and the design lattice, report the setting in "GeV/c" the way the control system does
@@ -332,6 +351,8 @@ def getBendGeVc(tao, bendName):
     else:
         "Not a special case bend"
         return
+
+
     
 
 
@@ -344,6 +365,7 @@ def setAllInjectorQuads(tao, QA10361kG, QA10371kG, QE10425kG, QE10441kG, QE10511
     setQuadkG(tao, "QE10525", QE10525kG)
 
     return
+
 
 def setAllFinalFocusQuads(tao, Q5FFkG, Q4FFkG, Q3FFkG, Q2FFkG, Q1FFkG, Q0FFkG, Q0DkG, Q1DkG, Q2DkG):
 
@@ -359,6 +381,7 @@ def setAllFinalFocusQuads(tao, Q5FFkG, Q4FFkG, Q3FFkG, Q2FFkG, Q1FFkG, Q0FFkG, Q
 
     return
 
+
 def setAllWChicaneBends(tao, B1EkG, B2EkG, B3EkG):
     
     setBendkG(tao, "B1LE", B1EkG)
@@ -369,6 +392,7 @@ def setAllWChicaneBends(tao, B1EkG, B2EkG, B3EkG):
     setBendkG(tao, "B1RE", B1EkG)
 
     return
+
 
 def setAllWChicaneQuads(tao, Q1EkG, Q2EkG, Q3EkG, Q4EkG, Q5EkG, Q6EkG):
     
@@ -393,8 +417,11 @@ def setAllWChicaneQuads(tao, Q1EkG, Q2EkG, Q3EkG, Q4EkG, Q5EkG, Q6EkG):
 
     return
 
+
+### Sextupole settings
+
 def setAllWChicaneSextupoles(tao, S1ELkG, S2ELkG, S3ELkG, S3ERkG, S2ERkG, S1ERkG):
-    
+    """Set all chicane sextupole strengths in the Tao lattice."""
     setSextkG(tao, "S1EL",   S1ELkG)
     setSextkG(tao, "S2EL",   S2ELkG)
     setSextkG(tao, "S3EL_1", S3ELkG)
@@ -403,8 +430,34 @@ def setAllWChicaneSextupoles(tao, S1ELkG, S2ELkG, S3ELkG, S3ERkG, S2ERkG, S1ERkG
     setSextkG(tao, "S3ER_2", S3ERkG)
     setSextkG(tao, "S2ER",   S2ERkG)
     setSextkG(tao, "S1ER",   S1ERkG)
+    return tao
 
-    return
+
+def setAllWChicaneSextupolesXOffsets(tao, S1EL_dx, S2EL_dx, S3EL_dx, S3ER_dx, S2ER_dx, S1ER_dx):
+    """Set all chicane sextupole horizontal offsets in the Tao lattice."""
+    tao.cmd(f'set ele {"S1EL"} X_OFFSET = {S1EL_dx}')
+    tao.cmd(f'set ele {"S2EL"} X_OFFSET = {S2EL_dx}')
+    tao.cmd(f'set ele {"S3EL_1"} X_OFFSET = {S3EL_dx}')
+    tao.cmd(f'set ele {"S3EL_2"} X_OFFSET = {S3EL_dx}')
+    tao.cmd(f'set ele {"S3ER_1"} X_OFFSET = {S3ER_dx}')
+    tao.cmd(f'set ele {"S3ER_2"} X_OFFSET = {S3ER_dx}')
+    tao.cmd(f'set ele {"S2ER"} X_OFFSET = {S2ER_dx}')
+    tao.cmd(f'set ele {"S1ER"} X_OFFSET = {S1ER_dx}')
+    return tao
+
+
+def setAllWChicaneSextupolesYOffsets(tao, S1EL_dx, S2EL_dx, S3EL_dx, S3ER_dx, S2ER_dx, S1ER_dx):
+    """Set all chicane sextupole vertical offsets in the Tao lattice."""
+    tao.cmd(f'set ele {"S1EL"} Y_OFFSET = {S1EL_dx}')
+    tao.cmd(f'set ele {"S2EL"} Y_OFFSET = {S2EL_dx}')
+    tao.cmd(f'set ele {"S3EL_1"} Y_OFFSET = {S3EL_dx}')
+    tao.cmd(f'set ele {"S3EL_2"} Y_OFFSET = {S3EL_dx}')
+    tao.cmd(f'set ele {"S3ER_1"} Y_OFFSET = {S3ER_dx}')
+    tao.cmd(f'set ele {"S3ER_2"} Y_OFFSET = {S3ER_dx}')
+    tao.cmd(f'set ele {"S2ER"} Y_OFFSET = {S2ER_dx}')
+    tao.cmd(f'set ele {"S1ER"} Y_OFFSET = {S1ER_dx}')
+    return tao
+
 
 def setAllWChicaneMovers(tao, S1EL_xOffset, S1EL_yOffset, S2EL_xOffset, S2EL_yOffset, S2ER_xOffset, S2ER_yOffset, S1ER_xOffset, S1ER_yOffset):
     
@@ -419,6 +472,7 @@ def setAllWChicaneMovers(tao, S1EL_xOffset, S1EL_yOffset, S2EL_xOffset, S2EL_yOf
     
     return
 
+
 def setAllFinalFocusKickers(tao, XC1FFkG, XC3FFkG, YC1FFkG, YC2FFkG):
     
     setKickerkG(tao, "XC1FF", XC1FFkG)
@@ -428,9 +482,11 @@ def setAllFinalFocusKickers(tao, XC1FFkG, XC3FFkG, YC1FFkG, YC2FFkG):
 
     return
 
+
 def setXTCAV(tao, XTCAVvoltage, XTCAVphase):
     tao.cmd(f"set ele XTCAVF VOLTAGE = {XTCAVvoltage}")
     tao.cmd(f"set ele XTCAVF PHI0 = {XTCAVphase / 360.0}")
+
 
 def setWChicaneLaunchQuads(tao, Q19851kG, Q19871kG):
     

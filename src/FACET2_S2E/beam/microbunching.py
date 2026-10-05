@@ -1,11 +1,64 @@
+"""Add density modulation to a beam and analyse its spectrum / microbunching gain.
+
+Moved from microbunchingFunctions.py; addLHmodulation from UTILITY_quickstart.py.
+"""
+
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.special import jn as besselj
+from pmd_beamphysics import ParticleGroup
 import math
 from scipy.stats import moment
 from scipy.ndimage import gaussian_filter1d
 
-import numpy as np
-import matplotlib.pyplot as plt
-from pmd_beamphysics import ParticleGroup
-from .plottingFunctions import make_a_plot
+from ..plotting.style import make_a_plot
+
+
+def addLHmodulation(
+    inputBeam, 
+    #Elaser, 
+    showplots=False,
+    laserHeater_laserEnergy = 0.5e-3,
+    laserHeater_sigma_t =  (2 / 2.355) * 1e-12,
+    laserHeater_offset = -0.5
+):
+    """ From C. Emma, 2024-08-23 """
+    # Hardcode FACET-II laser and undulator parameters
+    # Laser parameters
+    Elaser = laserHeater_laserEnergy
+    lambda_laser = 760e-9
+    sigmar_laser = 200e-6
+    sigmat_laser = laserHeater_sigma_t # (2 / 2.355) * 1e-12
+    Plaser = Elaser / np.sqrt(2 * np.pi * sigmat_laser**2)
+    offset = laserHeater_offset #-0.5  # laser to e-beam offset if you want you can add it
+    # Undulator parameters
+    K = 1.1699
+    lambdaw = 0.054
+    Nwig = 9
+    # Electron beam
+    outputBeam = inputBeam.copy()
+    x = inputBeam.x - np.mean(inputBeam.x)
+    y = inputBeam.y - np.mean(inputBeam.y)
+    gamma = inputBeam.gamma
+    gamma0 = np.mean(inputBeam.gamma)
+    t = inputBeam.t-np.mean(inputBeam.t);
+    # Calculated parameters
+    lambda_r = lambdaw / 2 / gamma0**2 * (1 + K**2 / 2)  # Assumes planar undulator
+    omega = 2 * np.pi * 299792458 / lambda_r  # Resonant frequency
+    JJ = besselj(0, K**2 / (4 + 2 * K**2)) - besselj(1, K**2 / (4 + 2 * K**2))
+    totalLaserEnergy = np.sqrt(2 * np.pi * sigmat_laser**2) * Plaser
+    # Laser is assumed Gaussian with peak power Plaser
+    # This formula from eq. 8 Huang PRSTAB 074401 2004
+    mod_amplitude = np.sqrt(Plaser / 8.7e9) * K * lambdaw * Nwig / gamma0 / sigmar_laser * JJ
+    #print(mod_amplitude / np.sqrt(Plaser))
+    # offset = 1.0  # temporal offset between laser and e-beam in units of laser wavelengths
+    # Calculate induced modulation deltagamma
+    deltagamma = mod_amplitude * np.exp(-0.25 * (x**2 + y**2) / sigmar_laser**2) * \
+                 np.sin(omega * t + offset * 2 * np.pi) * \
+                 np.exp(-0.5 * ((t - offset * sigmat_laser) / sigmat_laser)**2)
+    outputBeam.gamma = inputBeam.gamma + deltagamma
+    return outputBeam, deltagamma, t
+
 
 def make_modulated_bunch(beam, wavelength=30e-6, mod_amplitude=0.1, save_file=""):
     '''
@@ -22,6 +75,7 @@ def make_modulated_bunch(beam, wavelength=30e-6, mod_amplitude=0.1, save_file=""
     if save_file!="":
         P_local.write(save_file+".h5")
     return P_local
+
 
 ## Display the bunch density distribution \rho(z)
 
@@ -60,11 +114,17 @@ def hist(data, label='Longitudinal Coordinate z (um)', num_bins=200, xlim=None):
     plt.tight_layout()
     plt.show()
 
+
 ## Spectrum functions
 
 DEFAULT_NBINS = 5000
+
+
 BINS_PER_PERIOD = 16
+
+
 MAX_NBINS = int(2e6)
+
 
 def get_nbins_for_wavelength(l_dist, min_wavelength, bins_per_period=BINS_PER_PERIOD, max_nbins=MAX_NBINS):
     """Number of histogram bins needed to resolve min_wavelength in the distribution l_dist.
@@ -154,6 +214,7 @@ def get_spec_band(spec, maxlam, minlam):
             f"{2*spec[0]:.3g} m). Pass min_wavelength={minlam:.3g} to get_spectrum(), or a larger nbins.")
     return specx, specy, idx_wl, idx_wh
 
+
 def analyze_spec(spec, maxlam, minlam):
     specx, specy, idx_wl, idx_wh = get_spec_band(spec, maxlam, minlam)
     minFreq = specx[idx_wl]
@@ -195,6 +256,7 @@ def get_microbunching_gain_from_beams(initial_beam, final_beam, lmax1, lmin1, lm
     if file!="":
         np.savetxt(file,np.real(np.array([fpars,ipars])))
     return fpars[2]/ipars[2]
+
 
 def get_microbunching_gain(initial_beam_path, final_beam_path, lmax1, lmin1, lmax2, lmin2, file="", nbins=None, bins_per_period=BINS_PER_PERIOD):
     return get_microbunching_gain_from_beams(ParticleGroup(initial_beam_path), ParticleGroup(final_beam_path), lmax1, lmin1, lmax2, lmin2, file=file, nbins=nbins, bins_per_period=bins_per_period)
