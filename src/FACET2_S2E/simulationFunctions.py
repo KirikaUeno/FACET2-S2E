@@ -54,7 +54,7 @@ from .plottingFunctions import make_a_plot
 ### High end
 
 def get_tao_from_experiment(experiment="", scan_number="", date="", start='L0AFEND', finish='PR11375', filepath=None, locationsToSave = [],
-                            csrTF=False, lscTF=False, file_ext = "", energy=None, N_in_simple_bunch=5e4, N_to_use_from_file=None, tune_dipoles_to_125_335_4500_10000_MeV=False, tune_dipoles=False,
+                            csrTF=False, lscTF=False, file_ext = "", energy=None, N_in_simple_bunch=5e4, N_to_use_from_file=None, tune_dipoles_to_125_335_4500_10000_MeV=False, tune_dipoles=True,
                             correctors_coef=0, correctors_from_beg=False, run=True, gaussFromExternal=False, edit_only_energy_from_exp=False, energy_edit_on_beam=False, verbose=False,
                             lattice='setLattice_configs/2024-10-22_oneBunch-Copy1.yml', moments=[None,None,None,None,None,None], means=[0,0,0,0,None], charge=1.6e-9, sr_wakes_on=False, lr_wakes_on=False,
                             desired_beam_energies_for_the_feedback=None, desired_P0Cs_MeV=[None,None,None,None], grid_size=[32,32,32], lsc_method="slice", csr_method="1_dim", n_bin=32,
@@ -159,7 +159,7 @@ def get_tao_from_experiment(experiment="", scan_number="", date="", start='L0AFE
 
     # energy feedback on beam
     if energy_edit_on_beam:
-        tao = edit_energy_based_on_beam_all(tao, start, file, verbose=verbose, desired_beam_energies=desired_beam_energies_for_the_feedback, finalnumMacroParticles=N_to_use_from_file)
+        tao = edit_energy_based_on_beam_all(tao, start, file, verbose=verbose, desired_beam_energies=desired_beam_energies_for_the_feedback, finalnumMacroParticles=N_to_use_from_file, tune_dipoles=tune_dipoles, dipole_fields=fields)
 
     if tune_dipoles:
         tao = treat_dipoles(tao, fields)
@@ -518,7 +518,7 @@ def edit_energy_based_on_beam_L3(tao, location="ENDL3F_2", desiredPzMeV=10000):
         tao.cmd(f'set ele {i} GRADIENT = {g*coef_e}')
     return tao
 
-def edit_energy_based_on_beam_all(tao, start, file, desired_beam_energies=None, change_only_L0B=False, change_file_pz=True, verbose=False, finalnumMacroParticles=5e4):
+def edit_energy_based_on_beam_all(tao, start, file, desired_beam_energies=None, change_only_L0B=False, change_file_pz=True, verbose=False, finalnumMacroParticles=5e4, tune_dipoles=True, dipole_fields=default_bend_fields):
     '''
     This function changes the cavity voltages so that the tracked beam has the "desired_P0Cs" <pz> between the cavities.
     desired_P0Cs: the desired <pz> in eV between the cavities. Must be None or a list of 4 numbers (dogleg, bc11, bc14, bc20).
@@ -543,6 +543,8 @@ def edit_energy_based_on_beam_all(tao, start, file, desired_beam_energies=None, 
         edit_bunch_parameters(file, pzMeV=tao.ele_gen_attribs(start)["P0C"]*1e-6, moments=[None,None,None,None,None,None], means=[0,0,0,0,0], charge=-1, path_to_write=file)
     set_beam(tao, file, numMacroParticles = 5e4)
     locations = [start, "BX0FBEG"]
+    if tune_dipoles:
+            tao = treat_dipoles(tao, dipole_fields)
     tao = run_initialized_sim(tao, locations[0], locations[-1], pre, suf, locations)
     if verbose:
         print(f'beam to BX0FBEG: {[float(np.mean(getBeamAtElement(tao, "BX0FBEG", tToZ=False).pz))]}')
@@ -556,6 +558,9 @@ def edit_energy_based_on_beam_all(tao, start, file, desired_beam_energies=None, 
         edit_bunch_parameters(file, pzMeV=tao.ele_gen_attribs(start)["P0C"]*1e-6, moments=[None,None,None,None,None,None], means=[0,0,0,0,0], charge=-1, path_to_write=file)
     set_beam(tao, file, numMacroParticles = 5e4)
     locations = [start, "BC11CBEG"]
+
+    if tune_dipoles:
+            tao = treat_dipoles(tao, dipole_fields)
     tao = run_initialized_sim(tao, locations[0], locations[-1], pre, suf, locations)
     if verbose:
         print(f'beam to BC11CBEG: {[float(np.mean(getBeamAtElement(tao, "BX0FBEG", tToZ=False).pz)), float(np.mean(getBeamAtElement(tao, "BC11CBEG", tToZ=False).pz))]}')
@@ -569,6 +574,9 @@ def edit_energy_based_on_beam_all(tao, start, file, desired_beam_energies=None, 
         edit_bunch_parameters(file, pzMeV=tao.ele_gen_attribs(start)["P0C"]*1e-6, moments=[None,None,None,None,None,None], means=[0,0,0,0,0], charge=-1, path_to_write=file)
     set_beam(tao, file, numMacroParticles = 5e4)
     locations = [start, "ENDL2F"]
+    
+    if tune_dipoles:
+            tao = treat_dipoles(tao, dipole_fields)
     tao = run_initialized_sim(tao, locations[0], locations[-1], pre, suf, locations)
     if verbose:
         print(f'beam to ENDL2F: {[float(np.mean(getBeamAtElement(tao, "BX0FBEG", tToZ=False).pz)), float(np.mean(getBeamAtElement(tao, "BC11CBEG", tToZ=False).pz)), float(np.mean(getBeamAtElement(tao, "ENDL2F", tToZ=False).pz))]}')
@@ -582,6 +590,9 @@ def edit_energy_based_on_beam_all(tao, start, file, desired_beam_energies=None, 
         edit_bunch_parameters(file, pzMeV=tao.ele_gen_attribs(start)["P0C"]*1e-6, moments=[None,None,None,None,None,None], means=[0,0,0,0,0], charge=-1, path_to_write=file)
     set_beam(tao, file, numMacroParticles = 5e4)
     locations = [start, "ENDL3F_2"]
+    
+    if tune_dipoles:
+            tao = treat_dipoles(tao, dipole_fields)
     tao = run_initialized_sim(tao, locations[0], locations[-1], pre, suf, locations)
     if verbose:
         print(f'beam to ENDL3F_2: {[float(np.mean(getBeamAtElement(tao, "BX0FBEG", tToZ=False).pz)), float(np.mean(getBeamAtElement(tao, "BC11CBEG", tToZ=False).pz)), float(np.mean(getBeamAtElement(tao, "ENDL2F", tToZ=False).pz)), float(np.mean(getBeamAtElement(tao, "ENDL3F_2", tToZ=False).pz))]}')
