@@ -14,10 +14,10 @@ from Experimental_functions import DATASET
 import numpy as np
 from pmd_beamphysics import ParticleGroup
 
-from ..beam.generation import make_simple_bunch_standalone
-from ..beam.manipulation import edit_bunch_parameters
-from ..lattice.linac import setLinacPhase, setLinacGradientAuto
-from ..lattice.set_lattice import setQuadkG, setSextkG
+from ...beam.generation import make_simple_bunch_standalone
+from ...beam.manipulation import edit_bunch_parameters
+from .lattice.linac import setLinacPhase, setLinacGradientAuto
+from .lattice.set_lattice import setQuadkG, setSextkG
 from .core import initializeTao
 from .energy import save_dipoles, treat_dipoles
 from .runs import set_beam, edit_energy_based_on_beam_all, run_initialized_sim_edit_bunch_energy, run_initialized_sim_edit_lattice_energy_for_dipoles, run_initialized_sim
@@ -31,7 +31,7 @@ from .runs import set_beam, edit_energy_based_on_beam_all, run_initialized_sim_e
 def get_tao_from_experiment(experiment="", scan_number="", date="", start='L0AFEND', finish='PR11375', filepath=None, locationsToSave = [],
                             csrTF=False, lscTF=False, file_ext = "", energy=None, N_in_simple_bunch=5e4, N_to_use_from_file=None, tune_dipoles_to_125_335_4500_10000_MeV=False, tune_dipoles=True,
                             correctors_coef=0, correctors_from_beg=False, run=True, gaussFromExternal=False, edit_only_energy_from_exp=False, energy_edit_on_beam=False, verbose=False,
-                            lattice='setLattice_configs/2024-10-22_oneBunch-Copy1.yml', moments=[None,None,None,None,None,None], means=[0,0,0,0,None], charge=1.6e-9, sr_wakes_on=False, lr_wakes_on=False,
+                            lattice='setLattice_configs/2024-12-09_oneBunch_CSR-on_optimized.yml', moments=[None,None,None,None,None,None], means=[0,0,0,0,None], charge=1.6e-9, sr_wakes_on=False, lr_wakes_on=False,
                             desired_beam_energies_for_the_feedback=None, desired_P0Cs_MeV=[None,None,None,None], grid_size=[32,32,32], lsc_method="slice", csr_method="1_dim", n_bin=32,
                             edited_bunch_energy_at_checkpoints_MeV=[None, None, None, None], beam_edits=True):
     '''
@@ -89,8 +89,8 @@ def get_tao_from_experiment(experiment="", scan_number="", date="", start='L0AFE
     If False, the simulation is the same as Nathan's, where the dipole strength changes with the lattice energy.
     '''
     if filepath is None:
-        # src/FACET2_S2E/simulationFunctions.py -> repository root (same rule as initializeTao)
-        filepath = str(Path(__file__).resolve().parents[3])
+        # src/FACET2_S2E/simulators/bmad/experiment.py -> repository root (same rule as initializeTao)
+        filepath = str(Path(__file__).resolve().parents[4])
     if not os.path.isfile(f"{filepath}/bmad/models/f2_elec/tao.init"):
         raise FileNotFoundError(f'No FACET2-S2E lattice found in "{filepath}". Pass filepath="/path/to/FACET2-S2E", '
                                 'or install the package with "pip install -e ." so that the repository can be found automatically.')
@@ -433,7 +433,7 @@ def edit_tao_based_on_experiment_database(tao, dataset, correctors_coef=-1/10, c
     '''
     # Imported here (rather than at module level) to avoid a circular import with
     # simulationFunctions, which itself imports functions from this module.
-    from ..lattice.set_lattice import setAllWChicaneSextupolesXOffsets, setAllWChicaneSextupolesYOffsets
+    from .lattice.set_lattice import setAllWChicaneSextupolesXOffsets, setAllWChicaneSextupolesYOffsets
 
     # tao.cmd(f'set ele L0BF PHI0 = {l0bphase / 360.}')
     # tao.cmd(f'set ele L0BF VOLTAGE = {(61.0e6 + (mean_energy_MeV_lattice-125)*1e6) / math.cos(2*math.pi*l0bphase/360)}')

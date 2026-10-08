@@ -5,8 +5,8 @@ Moved from simulationFunctions.py.
 
 import numpy as np
 
-from ..lattice.linac import setLinacGradientAuto, matchStringWrapper
-from ..lattice.optics import get_element_array
+from .lattice.linac import setLinacGradientAuto, matchStringWrapper
+from .lattice.optics import get_element_array
 from .core import getBeamAtElement
 
 

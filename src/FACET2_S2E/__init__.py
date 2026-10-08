@@ -2,20 +2,22 @@
 FACET2_S2E: Simulation tools for FACET-II start-to-end beam dynamics
 
 Layout:
-    simulation/  Tao initialization, tracking, simulation runs, energy tuning,
-                 DAQ-experiment lattices, scans
-    lattice/     setLattice and EPICS-unit element control, linac phasing,
-                 optics/matrices, final focus solver
-    beam/        bunch generation, manipulation, statistics, microbunching
-    plotting/    phase-space, bunch summary, floorplan, styling
-    codes/       interfaces to external codes (IMPACT-T, QPAD)
+    simulators/          the three S2E stages
+        impact.py        IMPACT-T photoinjector
+        bmad/            Bmad/Tao: initialization, tracking (core.trackBeam is the S2E driver),
+                         simulation runs, energy tuning, DAQ-experiment lattices, scans
+            lattice/     setLattice and EPICS-unit element control, linac phasing,
+                         optics/matrices, final focus solver
+        qpad.py, qpad_picmi.py   QPAD plasma stage
+    beam/                bunch generation, manipulation, statistics, microbunching (any code)
+    plotting/            phase-space, bunch summary, floorplan, styling
 
 Everything listed in __all__ is available directly as FACET2_S2E.<name>.
 """
 
 ## Simulation
 
-from .simulation.core import (
+from .simulators.bmad.core import (
     initializeTao,
     applyBMADCollectiveEffectSettings,
     trackBeam,
@@ -24,27 +26,27 @@ from .simulation.core import (
     writeBeam,
     makeBeamActiveBeamFile,
 )
-from .simulation.config import (
+from .simulators.bmad.config import (
     loadConfig,
     applyOtherConfig,
     disableAutoQuadEnergyCompensation,
     disableAutoMagnetEnergyCompensation,
 )
-from .simulation.runs import (
+from .simulators.bmad.runs import (
     set_beam,
     run_initialized_sim,
     run_initialized_sim_edit_lattice_energy_for_dipoles,
     run_initialized_sim_edit_bunch_energy,
     edit_energy_based_on_beam_all,
 )
-from .simulation.energy import (
+from .simulators.bmad.energy import (
     tune_to_P0Cs,
     edit_energy_based_on_beam_inj,
     edit_energy_based_on_beam_L1,
     edit_energy_based_on_beam_L2,
     edit_energy_based_on_beam_L3,
 )
-from .simulation.experiment import (
+from .simulators.bmad.experiment import (
     get_tao_from_experiment,
     ### BMAD to DAQ funcs
     get_l0a_phase,
@@ -55,14 +57,14 @@ from .simulation.experiment import (
     edit_tao_based_on_experiment_database,
     edit_energy_tao_based_on_experiment_database,
 )
-from .simulation.scans import (
+from .simulators.bmad.scans import (
     make_1d_scan,
     make_comparison_dz_2nd_order,
 )
 
 ## Lattice
 
-from .lattice.set_lattice import (
+from .simulators.bmad.lattice.set_lattice import (
     setLattice,
     getBendkG, getQuadkG, getSextkG,
     setBendkG, setQuadkG, setSextkG,
@@ -73,24 +75,24 @@ from .lattice.set_lattice import (
     setAllWChicaneSextupolesXOffsets,
     setAllWChicaneSextupolesYOffsets,
 )
-from .lattice.linac import getLinacMatchStrings, setLinacPhase, setLinacGradientAuto
-from .lattice.optics import (
+from .simulators.bmad.lattice.linac import getLinacMatchStrings, setLinacPhase, setLinacGradientAuto
+from .simulators.bmad.lattice.optics import (
     displayMatrix,
     getMatrix,
     getMatrixLEGACY,
     setLatticeAndGetMatrix,
-    calcBMAG,
     launchTwissCorrection,
     launchTwissCorrectionObjective,
     get_element_array,
     get_rij,
     get_tijk,
 )
-from .lattice.final_focus import finalFocusSolver
+from .simulators.bmad.lattice.final_focus import finalFocusSolver
 
 ## Beam
 
 from .beam.generation import (
+    make_bunch,
     make_simple_bunch,
     make_simple_bunch_flatter,
     make_simple_bunch_standalone,
@@ -113,6 +115,7 @@ from .beam.manipulation import (
     getSingleBeamSlice,
 )
 from .beam.analysis import (
+    calcBMAG,
     smallestInterval,
     smallestIntervalImpliedSigma,
     smallestIntervalImpliedEmittance,
@@ -140,9 +143,7 @@ from .beam.microbunching import (
 
 from .plotting.phase_space import plotMod, slicePlotMod
 from .plotting.floorplan import floorplanPlot
-### Kladov's plotMod, kept available under a distinct name.
 from .plotting.bunch_summary import (
-    plotMod as plotModKladov,
     print_result,
     print_result_from_tao,
     print_result_from_file,
@@ -155,7 +156,7 @@ from .plotting.style import (
 
 ## External codes
 
-from .codes.qpad import (
+from .simulators.qpad import (
     plotInteractiveQPADFigure,
     saveAllQPADFigures,
     plotPlasmaProfile,
@@ -246,6 +247,7 @@ __all__ = [
     ## Bunch support functions
 
     ### Create a bunch
+    'make_bunch',
     'make_simple_bunch',
     'make_simple_bunch_flatter',
     'make_simple_bunch_standalone',
@@ -308,7 +310,6 @@ __all__ = [
 
     'enable_plt_styling',
     ### Display a bunch
-    'plotModKladov',
     'print_result',
     'print_result_from_tao',
     'print_result_from_file',

@@ -11,11 +11,11 @@ from pathlib import Path
 import OpenPMD_to_Bmad.Update_h5_file as pmd2bmad
 import os
 
-from ..beam.manipulation import modifyAndSaveInputBeam, centerBeam, collimateBeam, ballisticPropagation
-from ..beam.microbunching import addLHmodulation
-from ..codes.impact import runImpact
-from ..codes.qpad import run_QPAD
-from ..lattice.set_lattice import setLattice
+from ...beam.manipulation import modifyAndSaveInputBeam, centerBeam, collimateBeam, ballisticPropagation
+from ...beam.microbunching import addLHmodulation
+from ..impact import runImpact
+from ..qpad import run_QPAD
+from .lattice.set_lattice import setLattice
 from .config import loadConfig
 
 
@@ -127,7 +127,7 @@ def initializeTao(
     global filePathGlobal 
     
     if not filePath:
-        filePath = str(Path(__file__).parent.parent.parent.parent)
+        filePath = str(Path(__file__).parent.parent.parent.parent.parent)
 
     if not scratchPath:
         scratchPath = filePath

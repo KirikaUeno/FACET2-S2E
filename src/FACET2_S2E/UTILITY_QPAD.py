@@ -1,12 +1,12 @@
 """Deprecated location of UTILITY_QPAD, kept so old imports keep working.
 
 The code moved to:
-    FACET2_S2E.codes.qpad
+    FACET2_S2E.simulators.qpad
 Import from there, or use FACET2_S2E.<name> directly.
 """
 import warnings
 
-from .codes.qpad import (
+from .simulators.qpad import (
     QPAD_sim,
     generate_Li_oven_profile,
     eq,
@@ -22,7 +22,7 @@ from .codes.qpad import (
 
 warnings.warn(
     "FACET2_S2E.UTILITY_QPAD is deprecated and will be removed; import from"
-    " FACET2_S2E.codes.qpad or use FACET2_S2E.<name> instead.",
+    " FACET2_S2E.simulators.qpad or use FACET2_S2E.<name> instead.",
     FutureWarning,
     stacklevel=2,
 )

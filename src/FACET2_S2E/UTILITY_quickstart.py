@@ -1,17 +1,17 @@
 """Deprecated location of UTILITY_quickstart, kept so old imports keep working.
 
 The code was split into:
-    FACET2_S2E.simulation.core
+    FACET2_S2E.simulators.bmad.core
     FACET2_S2E.beam.manipulation
     FACET2_S2E.beam.analysis
-    FACET2_S2E.lattice.optics
+    FACET2_S2E.simulators.bmad.lattice.optics
     FACET2_S2E.beam.microbunching
-    FACET2_S2E.simulation.config
+    FACET2_S2E.simulators.bmad.config
 Import from there, or use FACET2_S2E.<name> directly.
 """
 import warnings
 
-from .simulation.core import (
+from .simulators.bmad.core import (
     initializeTao,
     applyBMADCollectiveEffectSettings,
     trackBeam,
@@ -32,6 +32,7 @@ from .beam.manipulation import (
     modifyAndSaveInputBeam,
 )
 from .beam.analysis import (
+    calcBMAG,
     smallestInterval,
     smallestIntervalImpliedSigma,
     smallestIntervalImpliedEmittanceModelFunction,
@@ -41,19 +42,18 @@ from .beam.analysis import (
     generalizedEmittanceSolverObjective,
     generalizedEmittanceSolver,
 )
-from .lattice.optics import (
+from .simulators.bmad.lattice.optics import (
     displayMatrix,
     getMatrix,
     getMatrixLEGACY,
     setLatticeAndGetMatrix,
-    calcBMAG,
     launchTwissCorrectionObjective,
     launchTwissCorrection,
 )
 from .beam.microbunching import (
     addLHmodulation,
 )
-from .simulation.config import (
+from .simulators.bmad.config import (
     loadConfig,
     disableAutoQuadEnergyCompensation,
     disableAutoMagnetEnergyCompensation,
@@ -66,12 +66,12 @@ from .plotting.phase_space import (
 from .plotting.floorplan import (
     floorplanPlot,
 )
-from .lattice.linac import (
+from .simulators.bmad.lattice.linac import (
     getLinacMatchStrings,
     setLinacPhase,
     setLinacGradientAuto,
 )
-from .lattice.set_lattice import (
+from .simulators.bmad.lattice.set_lattice import (
     setLattice,
     getBendkG,
     getQuadkG,
@@ -86,26 +86,26 @@ from .lattice.set_lattice import (
     setBendGeVc,
     getBendGeVc,
 )
-from .codes.impact import (
+from .simulators.impact import (
     runImpact,
 )
-from .lattice.final_focus import (
+from .simulators.bmad.lattice.final_focus import (
     finalFocusSolver,
 )
-from .codes.qpad import (
+from .simulators.qpad import (
     QPAD_sim,
     run_QPAD,
 )
 
 # filePathGlobal is not re-exported: it is module state of
-# FACET2_S2E.simulation.core, and a copy here would be stale.
+# FACET2_S2E.simulators.bmad.core, and a copy here would be stale.
 # Use tao.filePathGlobal.
 
 warnings.warn(
     "FACET2_S2E.UTILITY_quickstart is deprecated and will be removed; "
-    "import from FACET2_S2E.simulation.core, FACET2_S2E.beam.manipulation, "
-    "FACET2_S2E.beam.analysis, FACET2_S2E.lattice.optics, "
-    "FACET2_S2E.beam.microbunching, FACET2_S2E.simulation.config or use "
+    "import from FACET2_S2E.simulators.bmad.core, FACET2_S2E.beam.manipulation, "
+    "FACET2_S2E.beam.analysis, FACET2_S2E.simulators.bmad.lattice.optics, "
+    "FACET2_S2E.beam.microbunching, FACET2_S2E.simulators.bmad.config or use "
     "FACET2_S2E.<name> instead.",
     FutureWarning,
     stacklevel=2,

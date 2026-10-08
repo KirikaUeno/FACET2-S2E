@@ -6,9 +6,9 @@ Moved from simulationFunctions.py.
 import numpy as np
 from pmd_beamphysics import ParticleGroup
 
-from ..beam.generation import make_simple_bunch_theory_from_bunch_sims
-from ..lattice.optics import get_rij, get_tijk
-from ..plotting.style import make_a_plot
+from ...beam.generation import make_simple_bunch_theory_from_bunch_sims
+from .lattice.optics import get_rij, get_tijk
+from ...plotting.style import make_a_plot
 from .core import getBeamAtElement
 from .runs import set_beam, run_initialized_sim
 
@@ -50,10 +50,12 @@ def make_comparison_dz_2nd_order(tao, beam_file=None, start='L0AFEND', finish='P
         for j in range(6):
             for k in range(6):
                 t5ij[j][k] = float(get_tijk(tao, start, finish, 5, j+1, k+1))
+        # get_tijk returns the Taylor-map coefficient of the monomial x_j*x_k (z_out = ... + T566*delta**2,
+        # no 1/2), and (j, k), (k, j) are the same monomial, so each pair is counted once
         nonlinear_impact = np.zeros(len(beam))
         for j in range(6):
             for k in range(6):
-                nonlinear_impact += (t5ij[j][k]*(beam[:, j]*beam[:, k]) if j>=k else 0)/2
+                nonlinear_impact += t5ij[j][k]*(beam[:, j]*beam[:, k]) if j>=k else 0
         nonlinear_impact = nonlinear_impact if second_order else 0*nonlinear_impact
         dz = np.sum([r5i[j]*beam[:, j] for j in range(6)], axis=0) + nonlinear_impact
         dz = dz - np.mean(dz)

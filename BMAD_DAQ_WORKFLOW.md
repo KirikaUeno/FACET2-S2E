@@ -5,7 +5,7 @@ This guide explains how to simulate the FACET-II linac in Bmad from **L0AFEND to
 - **A. Original workflow + DAQ settings.** The standard `initializeTao()` / `trackBeam()` flow. The only change is that the lattice is overwritten with values from a DAQ scan.
 - **B. `get_tao_from_experiment()`.** One call that builds the lattice, loads the DAQ settings, prepares the beam, sets the collective effects and runs the simulation.
 
-Examples of every option are in [`examples/Kladov_BMAD_tutorial.ipynb`](examples/Kladov_BMAD_tutorial.ipynb). How the bends are treated is shown in [`examples/Kladov_BMAD_dipole_showcase.ipynb`](examples/Kladov_BMAD_dipole_showcase.ipynb).
+Examples of every option are in [`examples/Example - BMAD tutorial.ipynb`](<examples/Example - BMAD tutorial.ipynb>). How the bends are treated is shown in [`examples/Example - BMAD dipole showcase.ipynb`](<examples/Example - BMAD dipole showcase.ipynb>).
 
 > This guide replaces `OUTDATED_2026-06_FACET2_S2E_Kladov_BMAD_upgrade.pdf`. That PDF describes a separate `FACET2_S2E_Kladov` package, which has since been merged into `FACET2_S2E`.
 
@@ -119,7 +119,7 @@ tao = qs.get_tao_from_experiment(
     start="L0AFEND", finish="END",
     file_ext=REPO + "/beams/2024-12-11_Impact_OneBunch/2024-12-11_oneBunch",   # no ".h5"
     N_to_use_from_file=5e4,
-    lattice="setLattice_configs/2024-10-22_oneBunch-Copy1.yml",
+    lattice="setLattice_configs/2024-12-09_oneBunch_CSR-on_optimized.yml",
     csrTF=True, lscTF=True,
     sr_wakes_on=True, lr_wakes_on=True,
 )
@@ -146,7 +146,7 @@ The function does the following, in order:
 | Option | Default | Meaning |
 |---|---|---|
 | `filepath` | `None` | Path to this repository. If `None`, it is found from the installed package (requires `pip install -e .`). |
-| `lattice` | `2024-10-22_oneBunch-Copy1.yml` | Settings applied on top of `defaults.yml`. |
+| `lattice` | `2024-12-09_oneBunch_CSR-on_optimized.yml` | Settings applied on top of `defaults.yml`. |
 | `file_ext` | `""` | Input beam, without `.h5`. If `""`, a Gaussian beam is generated from `moments`. |
 | `N_to_use_from_file` | `None` | Randomly sample this many particles from the file. |
 | `gaussFromExternal`, `N_in_simple_bunch` | `False`, `5e4` | Replace the file beam with a Gaussian beam of the same RMS sizes. |
@@ -210,13 +210,13 @@ All are available as `qs.<name>` after `import FACET2_S2E as qs`.
 
 | Area | Functions |
 |---|---|
-| Beam creation and editing | `make_simple_bunch*`, `edit_bunch_parameters`, `edit_bunch_parameters_from_PG`, `modifyInputBeamSimple`, `cut_length` |
+| Beam creation and editing | `make_bunch`, `make_simple_bunch*`, `edit_bunch_parameters`, `edit_bunch_parameters_from_PG`, `modifyInputBeamSimple`, `cut_length` |
 | Energy tuning | `tune_to_P0Cs`, `edit_energy_based_on_beam_inj` / `_L1` / `_L2` / `_L3` / `_all` |
 | Collective effects | `applyBMADCollectiveEffectSettings` |
 | Lattice information | `get_element_array`, `get_rij`, `get_tijk` |
 | Sextupoles | `setAllWChicaneSextupoles`, `setAllWChicaneSextupolesXOffsets`, `setAllWChicaneSextupolesYOffsets` |
 | Scans | `make_1d_scan`, `make_comparison_dz_2nd_order` |
-| Plotting | `print_result`, `print_result_from_tao`, `print_result_from_file`, `plotModKladov`, `make_a_plot`, `enable_plt_styling` |
+| Plotting | `print_result`, `print_result_from_tao`, `print_result_from_file`, `plotMod`, `make_a_plot`, `enable_plt_styling` |
 | Microbunching | `make_modulated_bunch`, `hist`, `get_spectrum`, `print_spec`, `analyze_spec`, `get_microbunching_gain*` |
 
 `initializeTao(autoLoadActiveFile=False, loadCustomLatticeTF=True, latticeFile=...)` sets up only the lattice and the collective effects. The beam is then loaded separately with `set_beam()`. With the default `autoLoadActiveFile=True`, `initializeTao()` and `trackBeam()` behave as before.

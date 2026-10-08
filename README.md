@@ -59,8 +59,8 @@ The notebooks in the repository demonstrate typical workflows:
 * **`Example - Final focus tuning.ipynb`** – demonstrates the final focus optics optimizer to pick magnet settings to achieve desired Twiss
 * **`Example - Multiparticle tracking optimization.ipynb`** – demonstrates optimization constrained by real-world hardware limits of a multiparticle tracked beam
 * **`Example - Solution postprocessing and analysis.ipynb`** – postprocessing and analysis of the beam throughout the lattice
-* **`Kladov_BMAD_tutorial.ipynb`** – Bmad simulations with lattice settings loaded from a FACET-II DAQ scan (`get_tao_from_experiment()`). See [BMAD_DAQ_WORKFLOW.md](BMAD_DAQ_WORKFLOW.md) for the full workflow
-* **`Kladov_BMAD_dipole_showcase.ipynb`** – how bends are simulated when the linac energies differ from the nominal ones
+* **`Example - BMAD tutorial.ipynb`** – Bmad simulations with lattice settings loaded from a FACET-II DAQ scan (`get_tao_from_experiment()`). See [BMAD_DAQ_WORKFLOW.md](BMAD_DAQ_WORKFLOW.md) for the full workflow
+* **`Example - BMAD dipole showcase.ipynb`** – how bends are simulated when the linac energies differ from the nominal ones
 * **`Example - Beam visualization.nb`** – Mathematica notebook for advanced beam visualization and analysis, including 3D animation generation
 * **`Example - Optimization progress dashboard.nb`** – Mathematica companion notebook which visualizes optimization progress, e.g. parameter sensitivities and convergence
 * **`Example - Jitter study.py`** – Parallel computation of many simulations with parameters subject to jitter, informed by real-world measurements
@@ -74,8 +74,8 @@ The notebooks in the repository demonstrate typical workflows:
 
 ### Other features
 
-- `lattice.set_lattice` functions to translate between the language and units of the FACET-II EPICS control system and simulation
-- `lattice.linac` which conveniently phases and sets the gradients of the linacs
+- `simulators.bmad.lattice.set_lattice` functions to translate between the language and units of the FACET-II EPICS control system and simulation
+- `simulators.bmad.lattice.linac` which conveniently phases and sets the gradients of the linacs
 - Plotting tools for displaying beams and the beamline itself
 - Twiss optimizers for the final focus and golden lattice matching
 - Infrastructure for dealing with two-bunch operation
@@ -120,13 +120,15 @@ other_configs/           Atypical configurations including misalignment and stee
 qpad/                    QPAD configuration files
 setLattice_configs/      Reference configurations
 src/FACET2_S2E/          Main package source code, sorted by purpose:
-  ├── simulation/        Tao initialization and tracking, simulation runs, energy tuning,
-  │                      lattices from DAQ experiment data, scans
-  ├── lattice/           setLattice and EPICS-unit element control, linac phasing,
-  │                      optics/matrices, final focus solver
+  ├── simulators/        The three start-to-end stages
+  │   ├── impact.py      IMPACT-T photoinjector
+  │   ├── bmad/          Bmad/Tao: initialization and tracking (trackBeam drives the full S2E),
+  │   │   │              simulation runs, energy tuning, lattices from DAQ data, scans
+  │   │   └── lattice/   setLattice and EPICS-unit element control, linac phasing,
+  │   │                  optics/matrices, final focus solver
+  │   └── qpad.py        QPAD plasma stage (and qpad_picmi.py)
   ├── beam/              Bunch generation, manipulation, statistics, microbunching
-  ├── plotting/          Phase-space, bunch summary and floorplan plots; styling
-  └── codes/             Interfaces to external codes (IMPACT-T, QPAD)
+  └── plotting/          Phase-space, bunch summary and floorplan plots; styling
 src/Experimental_functions/  FACET-II DAQ data analysis (third-party, see Acknowledgements)
 tests/                   Automated test suite (unit, integration, system tests)
   ├── unit/              Unit tests for core functions
@@ -336,6 +338,8 @@ fig = qs.plotMod(
     xlim=(-200e-6, 100e-6),      # x limits
     ylim=(9e9, 10.5e9)           # y limits
 )
+# z_from_t=True plots z = -c*delta_t, for beams recorded at a fixed s (e.g. Bmad output).
+# qs.print_result(beam, couples=[['x','xp'], ['z','pz']]) draws several such plots side by side.
 ```
 
 #### `plotInteractiveQPADFigure()`
@@ -396,26 +400,26 @@ Everything in `FACET2_S2E.__all__` is available directly as `qs.<name>`. The cod
 
 | Module | Contents |
 |---|---|
-| `simulation.core` | `initializeTao`, `trackBeam`, `getBeamAtElement`, `writeBeam`, collective-effect settings |
-| `simulation.config` | `loadConfig`, `applyOtherConfig`, auto energy-compensation switches |
-| `simulation.runs` | `set_beam`, `run_initialized_sim*`, `edit_energy_based_on_beam_all` |
-| `simulation.energy` | `tune_to_P0Cs`, dipole field handling, per-linac energy edits |
-| `simulation.experiment` | `get_tao_from_experiment`, BMAD-to-EPICS-PV maps, DAQ-dataset lattice edits |
-| `simulation.scans` | `make_1d_scan`, `make_comparison_dz_2nd_order` |
-| `lattice.set_lattice` | `setLattice`, get/set helpers in control-system units (kG, GeV/c), offsets |
-| `lattice.linac` | Linac phasing and gradient utilities |
-| `lattice.optics` | Transfer matrices, `get_rij`/`get_tijk`, `calcBMAG`, `launchTwissCorrection` |
-| `lattice.final_focus` | `finalFocusSolver` |
-| `beam.generation` | `make_simple_bunch*` |
+| `simulators.bmad.core` | `initializeTao`, `trackBeam`, `getBeamAtElement`, `writeBeam`, collective-effect settings |
+| `simulators.bmad.config` | `loadConfig`, `applyOtherConfig`, auto energy-compensation switches |
+| `simulators.bmad.runs` | `set_beam`, `run_initialized_sim*`, `edit_energy_based_on_beam_all` |
+| `simulators.bmad.energy` | `tune_to_P0Cs`, dipole field handling, per-linac energy edits |
+| `simulators.bmad.experiment` | `get_tao_from_experiment`, BMAD-to-EPICS-PV maps, DAQ-dataset lattice edits |
+| `simulators.bmad.scans` | `make_1d_scan`, `make_comparison_dz_2nd_order` |
+| `simulators.bmad.lattice.set_lattice` | `setLattice`, get/set helpers in control-system units (kG, GeV/c), offsets |
+| `simulators.bmad.lattice.linac` | Linac phasing and gradient utilities |
+| `simulators.bmad.lattice.optics` | Transfer matrices, `get_rij`/`get_tijk`, `launchTwissCorrection` |
+| `simulators.bmad.lattice.final_focus` | `finalFocusSolver` |
+| `beam.generation` | `make_bunch` (6D covariance, Cholesky) and the `make_simple_bunch*` wrappers |
 | `beam.manipulation` | `modifyAndSaveInputBeam`, `edit_bunch_parameters*`, center/collimate/slice/cut |
-| `beam.analysis` | Smallest-interval spot sizes and emittances, `getBeamSpecs`, `generalizedEmittanceSolver` |
+| `beam.analysis` | Smallest-interval spot sizes and emittances, `calcBMAG`, `getBeamSpecs`, `generalizedEmittanceSolver` |
 | `beam.microbunching` | `addLHmodulation`, `make_modulated_bunch`, spectra and microbunching gain |
 | `plotting.phase_space` | `plotMod`, `slicePlotMod` |
-| `plotting.bunch_summary` | `plotModKladov`, `print_result*` |
+| `plotting.bunch_summary` | `print_result*` |
 | `plotting.floorplan` | `floorplanPlot` |
 | `plotting.style` | `enable_plt_styling`, `make_a_plot` |
-| `codes.impact` | IMPACT-T interface |
-| `codes.qpad`, `codes.qpad_picmi` | QPAD interface and visualization |
+| `simulators.impact` | IMPACT-T interface |
+| `simulators.qpad`, `simulators.qpad_picmi` | QPAD interface and visualization |
 
 The old `UTILITY_*` module paths (e.g. `from FACET2_S2E.UTILITY_quickstart import trackBeam`) still work but emit a `FutureWarning`; they will be removed in a future version, so please switch to `qs.<name>` or the modules above.
 

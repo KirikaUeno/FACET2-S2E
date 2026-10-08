@@ -14,7 +14,8 @@ from .analysis import (
 )
 from .dataset import DATASET
 from .image import IMAGE, Elog, DAQ, HDF5_DAQ, set_calibration, orientImage, specialFlips, ElogImage, parseDate
-from . import mplstyle
+# mplstyle is not imported here: it sets matplotlib rcParams globally on import.
+# Opt in with `import Experimental_functions.mplstyle`.
 
 __all__ = [
     'fwhm',
@@ -35,7 +36,6 @@ __all__ = [
     'specialFlips',
     'ElogImage',
     'parseDate',
-    'mplstyle',
 ]
 
 __version__ = "0.1.0"

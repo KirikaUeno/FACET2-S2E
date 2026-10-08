@@ -16,7 +16,7 @@ def modifyInputBeamSimple(inputBeamFilePath, numMacroParticles = None, timeCente
     """Prepare an input beam for Tao by optionally downsampling and centering. Almost the same as Nathans', but without Twiss matching.
 
     The beam is drift_to_z(), set z=0, and optionally time-centered.
-    If numMacroParticles is provided, the beam is randomly subsampled and weights are adjusted.
+    If numMacroParticles is provided (and smaller than the beam), the beam is randomly subsampled and weights are adjusted.
 
     Parameters:
         inputBeamFilePath: Path to the input beam file, including extension.
@@ -29,7 +29,7 @@ def modifyInputBeamSimple(inputBeamFilePath, numMacroParticles = None, timeCente
     P = ParticleGroup(inputBeamFilePath)
 
     if numMacroParticles:
-        if numMacroParticles>0:
+        if 0 < numMacroParticles < np.size(P.x):  # asking for more than the file has keeps all particles
             initialImportSize = np.size(P.x)
             numMacroParticles = int(numMacroParticles)
             P = P[random.sample(range(initialImportSize), numMacroParticles)]
@@ -69,24 +69,38 @@ def invsqrtm_psd(M, tol=1e-14):
     return V @ np.diag(w_inv) @ V.T, w
 
 
-def edit_bunch_parameters_from_PG(P_arg, pzMeV=None, moments=[None, None, None, None, None, None], correlations=[None,None,None], means=[0,0,0,0,0],
+def _correlation(a, b):
+    """Pearson correlation coefficient of a and b; 0 if either has zero spread."""
+    sa, sb = np.std(a), np.std(b)
+    if sa == 0 or sb == 0:
+        return 0
+    return np.mean((a - np.mean(a))*(b - np.mean(b))) / (sa*sb)
+
+
+def edit_bunch_parameters_from_PG(P_arg, pzMeV=None, moments=None, correlations=None, means=None,
                                   charge=-1, betaX=None, alphaX=None, emittanceX=None, betaY=None, alphaY=None, emittanceY=None, path_to_write='temp_beam/temp_e'):
     '''
-    moments are for x, xp, y, yp, z, pz
-    means are for x, xp, y, yp, z
+    moments are for x, xp, y, yp, z, pz (default: all None, i.e. unchanged)
+    correlations are the correlation coefficients r(x,xp), r(y,yp), r(z,pz) with z = -c*t; None keeps the beam's value
+    means are for x, xp, y, yp, c*t (default: 0, 0, 0, 0, 0); None keeps the beam's value
     xp and yp are in radians
     moments are RMS sizes
 
     if betaX and alphaX are supplied, the X phase space will have the emittance corresponding to moments[0] (size x = sqrt{epsilon beta}), and moments[1] will be overwritten. Same for Y.
     '''
     P = P_arg.copy()
-    
+    # Copies, so neither the caller's lists nor the defaults are modified below
+    moments = [None]*6 if moments is None else list(moments)
+    correlations = [None]*3 if correlations is None else list(correlations)
+    means = [0, 0, 0, 0, 0] if means is None else list(means)
+
     if correlations[0] is None:
-        correlations[0] = np.mean((P.x - np.mean(P.x))*(P.xp - np.mean(P.xp)))/np.std(P.x - np.mean(P.x))*np.std(P.xp - np.mean(P.xp)) if (np.std(P.xp - np.mean(P.xp))!=0 and np.std(P.x - np.mean(P.x))!=0) else 0
+        correlations[0] = _correlation(P.x, P.xp)
     if correlations[1] is None:
-        correlations[1] = np.mean((P.y - np.mean(P.y))*(P.yp - np.mean(P.yp)))/np.std(P.y - np.mean(P.y))*np.std(P.yp - np.mean(P.yp)) if (np.std(P.yp - np.mean(P.yp))!=0 and np.std(P.y - np.mean(P.y))!=0) else 0
+        correlations[1] = _correlation(P.y, P.yp)
     if correlations[2] is None:
-        correlations[2] = np.mean((P.pz - np.mean(P.pz))*(P.t - np.mean(P.t))*3e8)/np.std(P.pz - np.mean(P.pz))*np.std((P.t - np.mean(P.t))*3e8) if (np.std((P.t - np.mean(P.t))*3e8)!=0 and np.std(P.pz - np.mean(P.pz))!=0) else 0
+        # same (z = -c*t, pz) basis as sigmaMatrixZ below
+        correlations[2] = _correlation(-P.t*3e8, P.pz)
     
     sigmaMatrixX=np.array([[-1,-1],[-1,-1]], dtype=float)
     sigmaMatrixY=np.array([[-1,-1],[-1,-1]], dtype=float)
@@ -219,13 +233,14 @@ def edit_bunch_parameters_from_PG(P_arg, pzMeV=None, moments=[None, None, None, 
     return P
 
 
-def edit_bunch_parameters(file_ext, pzMeV=None, moments=[None,None,None,None,None,None], correlations=[None,None,None], means=[0,0,0,0,0], charge=-1,
+def edit_bunch_parameters(file_ext, pzMeV=None, moments=None, correlations=None, means=None, charge=-1,
                           betaX=None, alphaX=None, emittanceX=None, betaY=None, alphaY=None, emittanceY=None, path_to_write='temp_beam/temp_e'):
     '''Edit the bunch parameters.
     file_ext: Base file path without the .h5 extension.
 
-    moments are for x, xp, y, yp, z, pz
-    means are for x, xp, y, yp, z
+    moments are for x, xp, y, yp, z, pz (default: all None, i.e. unchanged)
+    correlations are the correlation coefficients r(x,xp), r(y,yp), r(z,pz) with z = -c*t; None keeps the beam's value
+    means are for x, xp, y, yp, c*t (default: 0, 0, 0, 0, 0); None keeps the beam's value
     xp and yp are in radians
     moments are RMS sizes
 
@@ -240,7 +255,7 @@ def cut_length(particle_group, length = 0, drift_to_z = True):
 
     Parameters:
         particle_group: Input ParticleGroup.
-        length: Full longitudinal window in meters.
+        length: Half-width of the longitudinal window in meters (particles with |c*(t - <t>)| < length are kept).
         drift_to_z: If False, the beam will be drift_to_t to <t> after the slicing.
 
     Returns:
@@ -249,12 +264,10 @@ def cut_length(particle_group, length = 0, drift_to_z = True):
 
     P = particle_group.copy()
     P.drift_to_z()
-    indexes_to_leave = []
-    meanT = np.mean(P.t)
-    for (i,p) in enumerate(P):
-        if(np.abs(p.t-meanT)<(length/(3e8))):
-            indexes_to_leave.append(i)
-    indices = np.array(indexes_to_leave)
+    indices = np.flatnonzero(np.abs(P.t - np.mean(P.t)) < length/3e8)
+    if len(indices) == 0:
+        raise ValueError(f"cut_length: no particles within {length:.3g} m of the bunch center "
+                         f"({len(P)} particles in the beam); use a longer window or more particles")
     Ptemp = P[indices]
     if not drift_to_z:
         Ptemp.drift_to_t()

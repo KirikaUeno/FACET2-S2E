@@ -46,11 +46,10 @@ def test_legacy_names_are_new_objects(name):
 
 
 def test_legacy_plotmod_is_phase_space_plotmod():
-    """UTILITY_plotMod.plotMod is the phase-space plotMod, not plotModKladov."""
+    """UTILITY_plotMod.plotMod is the single (merged) plotMod."""
     with pytest.warns(FutureWarning):
         legacy = import_fresh("UTILITY_plotMod")
     assert legacy.plotMod is FACET2_S2E.plotMod
-    assert legacy.plotMod is not FACET2_S2E.plotModKladov
 
 
 def test_legacy_quickstart_examples():

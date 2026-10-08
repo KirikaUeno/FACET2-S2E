@@ -1,5 +1,5 @@
 """
-Tests for the functions formerly in FACET2_S2E.UTILITY_quickstart (now spread over simulation/, lattice/ and beam/)
+Tests for the functions formerly in FACET2_S2E.UTILITY_quickstart (now spread over simulators/bmad/, simulators/bmad/lattice/ and beam/)
 
 This test suite provides comprehensive coverage for all functions in the quickstart utility.
 Some tests require mocking Tao objects and ParticleGroup data structures.
@@ -472,14 +472,14 @@ class TestGetDriverAndWitness:
 class TestWriteBeam:
     """Tests for writeBeam function"""
     
-    @patch('FACET2_S2E.simulation.core.pmd2bmad.OpenPMD_to_Bmad')
+    @patch('FACET2_S2E.simulators.bmad.core.pmd2bmad.OpenPMD_to_Bmad')
     def test_write_beam(self, mock_openpmd):
         """Test writing beam to file"""
         P = Mock()
         P.write = Mock()
         fileName = '/tmp/test_beam.h5'
         
-        from FACET2_S2E.simulation.core import writeBeam
+        from FACET2_S2E.simulators.bmad.core import writeBeam
         writeBeam(P, fileName)
         
         P.write.assert_called_once_with(fileName)
@@ -1068,12 +1068,12 @@ class TestGetBeamSpecs:
 class TestTrackBeam:
     """Tests for trackBeam function - check all if statements"""
     
-    @patch('FACET2_S2E.simulation.core.trackBeamHelper')
-    @patch('FACET2_S2E.simulation.core.getBeamAtElement')
-    @patch('FACET2_S2E.simulation.core.writeBeam')
+    @patch('FACET2_S2E.simulators.bmad.core.trackBeamHelper')
+    @patch('FACET2_S2E.simulators.bmad.core.getBeamAtElement')
+    @patch('FACET2_S2E.simulators.bmad.core.writeBeam')
     def test_track_beam_laser_heater_path(self, mock_write, mock_get_beam, mock_helper):
         """Test trackBeam laser heater condition"""
-        from FACET2_S2E.simulation.core import trackBeam
+        from FACET2_S2E.simulators.bmad.core import trackBeam
         
         mock_tao = Mock()
         mock_tao.cmd = Mock()
@@ -1100,7 +1100,7 @@ class TestTrackBeam:
         mock_beam.copy = Mock(return_value=mock_beam)
         mock_get_beam.return_value = mock_beam
         
-        with patch('FACET2_S2E.simulation.core.addLHmodulation') as mock_lh:
+        with patch('FACET2_S2E.simulators.bmad.core.addLHmodulation') as mock_lh:
             mock_lh.return_value = (mock_beam, np.zeros(100), np.zeros(100))
             
             trackBeam(
@@ -1117,12 +1117,12 @@ class TestTrackBeam:
         # Verify addLHmodulation was called
         assert mock_lh.called
     
-    @patch('FACET2_S2E.simulation.core.trackBeamHelper')
-    @patch('FACET2_S2E.simulation.core.getBeamAtElement')
-    @patch('FACET2_S2E.simulation.core.writeBeam')
+    @patch('FACET2_S2E.simulators.bmad.core.trackBeamHelper')
+    @patch('FACET2_S2E.simulators.bmad.core.getBeamAtElement')
+    @patch('FACET2_S2E.simulators.bmad.core.writeBeam')
     def test_track_beam_center_dl10_path(self, mock_write, mock_get_beam, mock_helper):
         """Test trackBeam centerDL10 condition"""
-        from FACET2_S2E.simulation.core import trackBeam
+        from FACET2_S2E.simulators.bmad.core import trackBeam
         
         mock_tao = Mock()
         mock_tao.cmd = Mock()
@@ -1149,7 +1149,7 @@ class TestTrackBeam:
         mock_beam.copy = Mock(return_value=mock_beam)
         mock_get_beam.return_value = mock_beam
         
-        with patch('FACET2_S2E.simulation.core.centerBeam') as mock_center:
+        with patch('FACET2_S2E.simulators.bmad.core.centerBeam') as mock_center:
             mock_center.return_value = mock_beam
             
             trackBeam(
@@ -1163,12 +1163,12 @@ class TestTrackBeam:
         # Verify centerBeam was called
         assert mock_center.called
     
-    @patch('FACET2_S2E.simulation.core.trackBeamHelper')
-    @patch('FACET2_S2E.simulation.core.getBeamAtElement')
-    @patch('FACET2_S2E.simulation.core.writeBeam')
+    @patch('FACET2_S2E.simulators.bmad.core.trackBeamHelper')
+    @patch('FACET2_S2E.simulators.bmad.core.getBeamAtElement')
+    @patch('FACET2_S2E.simulators.bmad.core.writeBeam')
     def test_track_beam_assert_bc14_energy(self, mock_write, mock_get_beam, mock_helper):
         """Test trackBeam BC14 energy assertion"""
-        from FACET2_S2E.simulation.core import trackBeam
+        from FACET2_S2E.simulators.bmad.core import trackBeam
         
         mock_tao = Mock()
         mock_tao.cmd = Mock()
@@ -1195,7 +1195,7 @@ class TestTrackBeam:
         mock_beam.copy = Mock(return_value=mock_beam)
         mock_get_beam.return_value = mock_beam
         
-        with patch('FACET2_S2E.simulation.core.centerBeam') as mock_center:
+        with patch('FACET2_S2E.simulators.bmad.core.centerBeam') as mock_center:
             mock_center.return_value = mock_beam
             
             # Test with bool True (should use default 4.5 GeV)
@@ -1213,12 +1213,12 @@ class TestTrackBeam:
         call_kwargs = mock_center.call_args[1]
         assert 'assertEnergy' in call_kwargs
     
-    @patch('FACET2_S2E.simulation.core.trackBeamHelper')
-    @patch('FACET2_S2E.simulation.core.getBeamAtElement')
-    @patch('FACET2_S2E.simulation.core.writeBeam')
+    @patch('FACET2_S2E.simulators.bmad.core.trackBeamHelper')
+    @patch('FACET2_S2E.simulators.bmad.core.getBeamAtElement')
+    @patch('FACET2_S2E.simulators.bmad.core.writeBeam')
     def test_track_beam_collimator_path(self, mock_write, mock_get_beam, mock_helper):
         """Test trackBeam collimator condition"""
-        from FACET2_S2E.simulation.core import trackBeam
+        from FACET2_S2E.simulators.bmad.core import trackBeam
         
         mock_tao = Mock()
         mock_tao.cmd = Mock()
@@ -1244,7 +1244,7 @@ class TestTrackBeam:
         mock_beam.copy = Mock(return_value=mock_beam)
         mock_get_beam.return_value = mock_beam
         
-        with patch('FACET2_S2E.simulation.core.collimateBeam') as mock_collimate:
+        with patch('FACET2_S2E.simulators.bmad.core.collimateBeam') as mock_collimate:
             mock_collimate.return_value = mock_beam
             
             trackBeam(
@@ -1258,12 +1258,12 @@ class TestTrackBeam:
         # collimateBeam should be called
         assert mock_collimate.called
     
-    @patch('FACET2_S2E.simulation.core.trackBeamHelper')
-    @patch('FACET2_S2E.simulation.core.getBeamAtElement')
-    @patch('FACET2_S2E.simulation.core.writeBeam')
+    @patch('FACET2_S2E.simulators.bmad.core.trackBeamHelper')
+    @patch('FACET2_S2E.simulators.bmad.core.getBeamAtElement')
+    @patch('FACET2_S2E.simulators.bmad.core.writeBeam')
     def test_track_beam_center_bc14_path(self, mock_write, mock_get_beam, mock_helper):
         """Test trackBeam centerBC14 condition"""
-        from FACET2_S2E.simulation.core import trackBeam
+        from FACET2_S2E.simulators.bmad.core import trackBeam
         
         mock_tao = Mock()
         mock_tao.cmd = Mock()
@@ -1289,7 +1289,7 @@ class TestTrackBeam:
         mock_beam.copy = Mock(return_value=mock_beam)
         mock_get_beam.return_value = mock_beam
         
-        with patch('FACET2_S2E.simulation.core.centerBeam') as mock_center:
+        with patch('FACET2_S2E.simulators.bmad.core.centerBeam') as mock_center:
             mock_center.return_value = mock_beam
             
             trackBeam(
@@ -1303,12 +1303,12 @@ class TestTrackBeam:
         # centerBeam should be called for BC14 centering
         assert mock_center.called
     
-    @patch('FACET2_S2E.simulation.core.trackBeamHelper')
-    @patch('FACET2_S2E.simulation.core.getBeamAtElement')
-    @patch('FACET2_S2E.simulation.core.writeBeam')
+    @patch('FACET2_S2E.simulators.bmad.core.trackBeamHelper')
+    @patch('FACET2_S2E.simulators.bmad.core.getBeamAtElement')
+    @patch('FACET2_S2E.simulators.bmad.core.writeBeam')
     def test_track_beam_center_bc20_path(self, mock_write, mock_get_beam, mock_helper):
         """Test trackBeam centerBC20 condition"""
-        from FACET2_S2E.simulation.core import trackBeam
+        from FACET2_S2E.simulators.bmad.core import trackBeam
         
         mock_tao = Mock()
         mock_tao.cmd = Mock()
@@ -1334,7 +1334,7 @@ class TestTrackBeam:
         mock_beam.copy = Mock(return_value=mock_beam)
         mock_get_beam.return_value = mock_beam
         
-        with patch('FACET2_S2E.simulation.core.centerBeam') as mock_center:
+        with patch('FACET2_S2E.simulators.bmad.core.centerBeam') as mock_center:
             mock_center.return_value = mock_beam
             
             trackBeam(
@@ -1348,12 +1348,12 @@ class TestTrackBeam:
         # centerBeam should be called for BC20 centering
         assert mock_center.called
     
-    @patch('FACET2_S2E.simulation.core.trackBeamHelper')
-    @patch('FACET2_S2E.simulation.core.getBeamAtElement')
-    @patch('FACET2_S2E.simulation.core.writeBeam')
+    @patch('FACET2_S2E.simulators.bmad.core.trackBeamHelper')
+    @patch('FACET2_S2E.simulators.bmad.core.getBeamAtElement')
+    @patch('FACET2_S2E.simulators.bmad.core.writeBeam')
     def test_track_beam_center_mfff_path(self, mock_write, mock_get_beam, mock_helper):
         """Test trackBeam centerMFFF condition"""
-        from FACET2_S2E.simulation.core import trackBeam
+        from FACET2_S2E.simulators.bmad.core import trackBeam
         
         mock_tao = Mock()
         mock_tao.cmd = Mock()
@@ -1379,7 +1379,7 @@ class TestTrackBeam:
         mock_beam.copy = Mock(return_value=mock_beam)
         mock_get_beam.return_value = mock_beam
         
-        with patch('FACET2_S2E.simulation.core.centerBeam') as mock_center:
+        with patch('FACET2_S2E.simulators.bmad.core.centerBeam') as mock_center:
             mock_center.return_value = mock_beam
             
             trackBeam(
@@ -1396,12 +1396,12 @@ class TestTrackBeam:
         call_args_list = [str(call) for call in mock_center.call_args_list]
         assert any('MFFF' in str(call) for call in call_args_list) or mock_center.call_count > 0
     
-    @patch('FACET2_S2E.simulation.core.trackBeamHelper')
-    @patch('FACET2_S2E.simulation.core.getBeamAtElement')
-    @patch('FACET2_S2E.simulation.core.writeBeam')
+    @patch('FACET2_S2E.simulators.bmad.core.trackBeamHelper')
+    @patch('FACET2_S2E.simulators.bmad.core.getBeamAtElement')
+    @patch('FACET2_S2E.simulators.bmad.core.writeBeam')
     def test_track_beam_plasma_sim_path(self, mock_write, mock_get_beam, mock_helper):
         """Test trackBeam plasmaSIM condition"""
-        from FACET2_S2E.simulation.core import trackBeam
+        from FACET2_S2E.simulators.bmad.core import trackBeam
         
         mock_tao = Mock()
         mock_tao.cmd = Mock()
@@ -1430,8 +1430,8 @@ class TestTrackBeam:
         mock_beam.copy = Mock(return_value=mock_beam)
         mock_get_beam.return_value = mock_beam
         
-        with patch('FACET2_S2E.simulation.core.run_QPAD') as mock_qpad:
-            with patch('FACET2_S2E.simulation.core.ballisticPropagation') as mock_ballistic:
+        with patch('FACET2_S2E.simulators.bmad.core.run_QPAD') as mock_qpad:
+            with patch('FACET2_S2E.simulators.bmad.core.ballisticPropagation') as mock_ballistic:
                 # run_QPAD returns tuple (beam, lsim)
                 mock_qpad.return_value = (mock_beam, 0.1)
                 mock_ballistic.return_value = None
@@ -1457,7 +1457,7 @@ class TestDisableAutoQuadEnergyCompensation:
     
     def test_disable_auto_quad_compensation(self):
         """Test disabling auto quad energy compensation"""
-        from FACET2_S2E.simulation.config import disableAutoQuadEnergyCompensation
+        from FACET2_S2E.simulators.bmad.config import disableAutoQuadEnergyCompensation
         
         mock_tao = Mock()
         mock_tao.lat_list = Mock(return_value=[
@@ -1476,7 +1476,7 @@ class TestDisableAutoMagnetEnergyCompensation:
     
     def test_disable_auto_magnet_compensation(self):
         """Test disabling auto magnet energy compensation"""
-        from FACET2_S2E.simulation.config import disableAutoMagnetEnergyCompensation
+        from FACET2_S2E.simulators.bmad.config import disableAutoMagnetEnergyCompensation
         
         mock_tao = Mock()
         mock_tao.lat_list = Mock(return_value=[
@@ -1495,7 +1495,7 @@ class TestApplyOtherConfig:
     
     def test_apply_other_config_basic(self):
         """Test applying other config commands"""
-        from FACET2_S2E.simulation.config import applyOtherConfig
+        from FACET2_S2E.simulators.bmad.config import applyOtherConfig
         
         mock_tao = Mock()
         mock_tao.cmd = Mock()
@@ -1512,7 +1512,7 @@ class TestApplyOtherConfig:
     
     def test_apply_other_config_empty(self):
         """Test applying empty config"""
-        from FACET2_S2E.simulation.config import applyOtherConfig
+        from FACET2_S2E.simulators.bmad.config import applyOtherConfig
         
         mock_tao = Mock()
         mock_tao.cmd = Mock()
@@ -1533,11 +1533,11 @@ class TestApplyOtherConfig:
 class TestLaunchTwissCorrection:
     """Tests for launchTwissCorrection function"""
     
-    @patch('FACET2_S2E.lattice.optics.launchTwissCorrectionObjective')
+    @patch('FACET2_S2E.simulators.bmad.lattice.optics.launchTwissCorrectionObjective')
     @patch('scipy.optimize.minimize')
     def test_launch_twiss_correction_calls_minimize(self, mock_minimize, mock_objective):
         """Test that minimize is called with correct objective and bounds"""
-        from FACET2_S2E.lattice.optics import launchTwissCorrection
+        from FACET2_S2E.simulators.bmad.lattice.optics import launchTwissCorrection
         
         mock_tao = Mock()
         mock_tao.cmd = Mock()
@@ -1576,11 +1576,11 @@ class TestLaunchTwissCorrection:
             bounds = call_args[1]['bounds']
             assert len(bounds) == 4, "Should have 4 bounds for 4 parameters"
     
-    @patch('FACET2_S2E.lattice.optics.launchTwissCorrectionObjective')
+    @patch('FACET2_S2E.simulators.bmad.lattice.optics.launchTwissCorrectionObjective')
     @patch('scipy.optimize.minimize')
     def test_launch_twiss_correction_uses_correct_bounds(self, mock_minimize, mock_objective):
         """Test that minimize bounds are set correctly"""
-        from FACET2_S2E.lattice.optics import launchTwissCorrection
+        from FACET2_S2E.simulators.bmad.lattice.optics import launchTwissCorrection
         
         mock_tao = Mock()
         mock_tao.cmd = Mock()
@@ -1747,7 +1747,7 @@ class TestTrackBeamHelper:
     
     def test_track_beam_helper_success(self, mock_tao_advanced):
         """Test successful beam tracking"""
-        from FACET2_S2E.simulation.core import trackBeamHelper
+        from FACET2_S2E.simulators.bmad.core import trackBeamHelper
         
         trackBeamHelper(mock_tao_advanced)
         
@@ -1759,7 +1759,7 @@ class TestTrackBeamHelper:
     
     def test_track_beam_helper_failure(self, mock_tao_advanced):
         """Test beam tracking failure handling"""
-        from FACET2_S2E.simulation.core import trackBeamHelper
+        from FACET2_S2E.simulators.bmad.core import trackBeamHelper
         
         # Make cmd raise exception on first call
         mock_tao_advanced.cmd.side_effect = [Exception("Tracking failed"), None]
@@ -1774,10 +1774,10 @@ class TestTrackBeamHelper:
 class TestGetBeamAtElement:
     """Tests for getBeamAtElement function"""
     
-    @patch('FACET2_S2E.simulation.core.ParticleGroup')
+    @patch('FACET2_S2E.simulators.bmad.core.ParticleGroup')
     def test_get_beam_at_element_by_name(self, mock_pg_class, mock_tao_advanced):
         """Test getting beam at element by name"""
-        from FACET2_S2E.simulation.core import getBeamAtElement
+        from FACET2_S2E.simulators.bmad.core import getBeamAtElement
         
         # Setup mock ParticleGroup
         mock_pg = Mock()
@@ -1790,10 +1790,10 @@ class TestGetBeamAtElement:
         # Should call bunch_data with element name
         mock_tao_advanced.bunch_data.assert_called_once_with("PR10571")
     
-    @patch('FACET2_S2E.simulation.core.ParticleGroup')
+    @patch('FACET2_S2E.simulators.bmad.core.ParticleGroup')
     def test_get_beam_at_element_with_tToZ(self, mock_pg_class, mock_tao_advanced):
         """Test getting beam with t to z conversion"""
-        from FACET2_S2E.simulation.core import getBeamAtElement
+        from FACET2_S2E.simulators.bmad.core import getBeamAtElement
         
         # Setup mock ParticleGroup with delta_t
         mock_pg = Mock()
@@ -1825,7 +1825,7 @@ class TestGetMatrix:
     
     def test_get_matrix_basic(self, mock_tao_advanced):
         """Test getting transfer matrix between elements"""
-        from FACET2_S2E.lattice.optics import getMatrix
+        from FACET2_S2E.simulators.bmad.lattice.optics import getMatrix
         
         # Mock show to return matrix strings
         mock_tao_advanced.show.return_value = [
@@ -1846,7 +1846,7 @@ class TestGetMatrix:
     
     def test_get_matrix_with_offsets(self, mock_tao_advanced):
         """Test getting matrix with start/end offsets"""
-        from FACET2_S2E.lattice.optics import getMatrix
+        from FACET2_S2E.simulators.bmad.lattice.optics import getMatrix
         
         # Mock lat_list to return elements
         mock_tao_advanced.lat_list.return_value = ['START', 'Q1', 'D1', 'Q2', 'END']
@@ -1877,11 +1877,11 @@ class TestGetMatrix:
 class TestSetLatticeAndGetMatrix:
     """Tests for setLatticeAndGetMatrix function"""
     
-    @patch('FACET2_S2E.lattice.optics.setLattice')
-    @patch('FACET2_S2E.lattice.optics.getMatrix')
+    @patch('FACET2_S2E.simulators.bmad.lattice.optics.setLattice')
+    @patch('FACET2_S2E.simulators.bmad.lattice.optics.getMatrix')
     def test_set_lattice_and_get_matrix(self, mock_get_matrix, mock_set_lattice, mock_tao_advanced):
         """Test setting lattice and getting matrix"""
-        from FACET2_S2E.lattice.optics import setLatticeAndGetMatrix
+        from FACET2_S2E.simulators.bmad.lattice.optics import setLatticeAndGetMatrix
         
         mock_get_matrix.return_value = np.eye(6)
         default_settings = {'key': 'value'}
@@ -1910,10 +1910,10 @@ class TestSetLatticeAndGetMatrix:
 class TestLaunchTwissCorrectionObjective:
     """Tests for launchTwissCorrectionObjective function"""
     
-    @patch('FACET2_S2E.simulation.core.trackBeamHelper')
+    @patch('FACET2_S2E.simulators.bmad.core.trackBeamHelper')
     def test_twiss_correction_objective(self, mock_track, mock_tao_advanced):
         """Test Twiss correction objective function"""
-        from FACET2_S2E.lattice.optics import launchTwissCorrectionObjective
+        from FACET2_S2E.simulators.bmad.lattice.optics import launchTwissCorrectionObjective
         
         # Mock Twiss parameters
         mock_tao_advanced.ele_twiss.return_value = {
@@ -1989,10 +1989,10 @@ class TestEmittance:
 class TestDisplayMatrix:
     """Tests for displayMatrix function"""
     
-    @patch('FACET2_S2E.lattice.optics.display')
+    @patch('FACET2_S2E.simulators.bmad.lattice.optics.display')
     def test_display_matrix(self, mock_display):
         """Test matrix display function"""
-        from FACET2_S2E.lattice.optics import displayMatrix
+        from FACET2_S2E.simulators.bmad.lattice.optics import displayMatrix
         
         matrix = np.random.rand(6, 6)
         
@@ -2005,10 +2005,10 @@ class TestDisplayMatrix:
 class TestMakeBeamActiveBeamFile:
     """Tests for makeBeamActiveBeamFile function"""
     
-    @patch('FACET2_S2E.simulation.core.writeBeam')
+    @patch('FACET2_S2E.simulators.bmad.core.writeBeam')
     def test_make_beam_active_with_tao(self, mock_write, mock_particle_group_advanced, mock_tao_advanced):
         """Test making beam active beam file with tao object"""
-        from FACET2_S2E.simulation.core import makeBeamActiveBeamFile
+        from FACET2_S2E.simulators.bmad.core import makeBeamActiveBeamFile
         
         makeBeamActiveBeamFile(mock_particle_group_advanced, tao=mock_tao_advanced)
         
@@ -2018,11 +2018,11 @@ class TestMakeBeamActiveBeamFile:
             mock_tao_advanced.activeFilePath
         )
     
-    @patch('FACET2_S2E.simulation.core.writeBeam')
-    @patch('FACET2_S2E.simulation.core.filePathGlobal', '/test/path')
+    @patch('FACET2_S2E.simulators.bmad.core.writeBeam')
+    @patch('FACET2_S2E.simulators.bmad.core.filePathGlobal', '/test/path')
     def test_make_beam_active_without_tao(self, mock_write, mock_particle_group_advanced):
         """Test making beam active beam file without tao object"""
-        from FACET2_S2E.simulation.core import makeBeamActiveBeamFile
+        from FACET2_S2E.simulators.bmad.core import makeBeamActiveBeamFile
         
         makeBeamActiveBeamFile(mock_particle_group_advanced, tao=None)
         

@@ -8,7 +8,7 @@ Moved from simulationFunctions.py.
 
 import numpy as np
 
-from ..beam.manipulation import modifyInputBeamSimple, edit_bunch_parameters_from_PG, edit_bunch_parameters
+from ...beam.manipulation import modifyInputBeamSimple, edit_bunch_parameters_from_PG, edit_bunch_parameters
 from .core import trackBeam, getBeamAtElement
 from .energy import treat_dipoles, tune_to_P0Cs, default_bend_fields, edit_energy_based_on_beam_inj, edit_energy_based_on_beam_L1, edit_energy_based_on_beam_L2, edit_energy_based_on_beam_L3
 

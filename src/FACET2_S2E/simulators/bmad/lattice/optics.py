@@ -9,7 +9,7 @@ import pandas as pd
 from IPython.display import display
 
 from .set_lattice import setLattice
-from ..simulation.config import loadConfig
+from ..config import loadConfig
 
 
     
@@ -75,36 +75,6 @@ def setLatticeAndGetMatrix(tao, start, end, startOffset = 0, endOffset = 0, defa
     setLattice(tao, **( defaultSettings | overrideSettings ) )
    
     return getMatrix(tao, start, end, startOffset = startOffset, endOffset = endOffset)
-
-
-def calcBMAG(b0, a0, b, a):
-    #From Lucretia
-    #For a bit more detail, see "BMAG from Lucretia.nb"
-    #Not validated!!!
-
-    # function [B,Bpsi]=bmag(b0,a0,b,a)
-    # %
-    # % [B,Bpsi]=bmag(b0,a0,b,a);
-    # %
-    # % Compute BMAG and its phase from Twiss parameters
-    # %
-    # % INPUTs:
-    # %
-    # %   b0 = matched beta
-    # %   a0 = matched alpha
-    # %   b  = mismatched beta
-    # %   a  = mismatched alpha
-    # %
-    # % OUTPUTs:
-    # %
-    # %   B    = mismatch amplitude
-    # %   Bpsi = mismatch phase (deg)
-
-    g0 = (1 + a0 ** 2) / b0
-    g  = (1 + a ** 2) / b
-    B  = (b0 * g - 2.0 * a0 * a + g0 * b) / 2
-
-    return B
 
 
 #Here's a version that would work if the axes are coupled.... they really, really, really shouldn't ever be though
@@ -203,7 +173,7 @@ def get_element_array(tao, beg, end, values_to_show=[], values_to_remove=[], mar
     
     trunc_array = elements[location1:location2+1]
     show_array = trunc_array[np.isin(trunc_array[:, 2], values_to_show)] if (len(values_to_show)>0) else trunc_array
-    clean_array = show_array[~np.isin(trunc_array[:, 2], values_to_remove)] if (len(values_to_remove)>0) else show_array
+    clean_array = show_array[~np.isin(show_array[:, 2], values_to_remove)] if (len(values_to_remove)>0) else show_array
     
     return clean_array
 

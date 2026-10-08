@@ -115,7 +115,7 @@ def make_a_plot(x, y, errs=None, aspect_ratio=0.67, label=r"$\sin(x)$", x_label=
     #     h2, lab2 = ax2.get_legend_handles_labels()
     #     ax1.legend(h1 + h2, lab1 + lab2, loc='best', frameon=False,handlelength=2.0)
 
-    if len(y_label) in [2, 3]:
+    if not isinstance(y_label, str) and len(y_label) in [2, 3]:  # a list of labels, one per y-axis
     
         fig, ax1 = plt.subplots(
             figsize=(4.5, 4.5 * aspect_ratio)

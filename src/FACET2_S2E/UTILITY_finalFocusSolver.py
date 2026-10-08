@@ -1,16 +1,16 @@
 """Deprecated location of UTILITY_finalFocusSolver, kept so old imports keep working.
 
 The code moved to:
-    FACET2_S2E.lattice.final_focus
+    FACET2_S2E.simulators.bmad.lattice.final_focus
 Import from there, or use FACET2_S2E.<name> directly.
 """
 import warnings
 
-from .lattice.final_focus import (
+from .simulators.bmad.lattice.final_focus import (
     finalFocusSolverObjective,
     finalFocusSolver,
 )
-from .lattice.set_lattice import (
+from .simulators.bmad.lattice.set_lattice import (
     setLattice,
     getBendkG,
     getQuadkG,
@@ -24,7 +24,7 @@ from .lattice.set_lattice import (
 
 warnings.warn(
     "FACET2_S2E.UTILITY_finalFocusSolver is deprecated and will be removed;"
-    " import from FACET2_S2E.lattice.final_focus or use FACET2_S2E.<name> "
+    " import from FACET2_S2E.simulators.bmad.lattice.final_focus or use FACET2_S2E.<name> "
     "instead.",
     FutureWarning,
     stacklevel=2,

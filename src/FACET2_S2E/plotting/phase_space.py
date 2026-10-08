@@ -6,7 +6,7 @@ Moved from UTILITY_plotMod.py.
 import numpy as np
 import matplotlib.pyplot as plt
 import pmd_beamphysics
-from matplotlib.gridspec import GridSpec
+from matplotlib.gridspec import GridSpec, GridSpecFromSubplotSpec
 from copy import copy
 
 
@@ -17,6 +17,11 @@ def plotMod(particle_group, key1='t', key2='p',
                   ylim=None,
                   tex=True,
                   nice=True,
+                  fig=None,
+                  outer=None,
+                  i=None,
+                  z_from_t=False,
+                  background=None,
                   **kwargs):
     """
     Create a 2D hexbin plot with marginal histograms for a ParticleGroup, derived from openPMD-beamphysics marginal_plot().
@@ -39,27 +44,41 @@ def plotMod(particle_group, key1='t', key2='p',
         Whether to use TeX-style labels.
     nice : bool, default True
         Whether to use nice units and scaling for axes.
+    fig, outer, i : Figure, GridSpec, int, optional
+        If all three are given, the plot is drawn into cell ``outer[i]`` of an existing figure
+        (used by print_result to put several plots side by side). Otherwise a new figure is created.
+    z_from_t : bool, default False
+        If True, a key 'z' is plotted as z = -c * delta_t. Useful for beams recorded at a fixed s
+        (e.g. Bmad output), where all particles share the same z and differ in t.
+    background : color, optional
+        Background color of the joint plot. Default: the lowest colormap color.
     **kwargs : dict
-        Additional keyword arguments passed to plt.figure().
+        Additional keyword arguments passed to plt.figure() when a new figure is created.
 
     Returns
     -------
     fig : matplotlib.figure.Figure
-        The created matplotlib figure.
+        The figure containing the plot.
 
     Notes
     -----
-    - The function closes all previous figures and disables interactive plotting.
+    - When a new figure is created, all previous figures are closed and interactive plotting is
+      left disabled, so that display(plotMod(...)) shows the figure exactly once.
+    - When drawing into an existing figure, nothing is closed and the interactive state is restored.
     - The joint plot shows a weighted hexbin of the selected variables, with marginal histograms above and to the right.
     - Axes are labeled with units and optionally TeX formatting.
     - Intended for quick visualization of beam phase space projections.
     """    
 
-    plt.close('all')
+    embedded = fig is not None and outer is not None and i is not None
+
+    if embedded:
+        was_interactive = plt.isinteractive()
+    else:
+        plt.close('all')
     
     CMAP0 = copy(plt.get_cmap('viridis'))
     CMAP0.set_under(CMAP0(0))  # set under-color to the lowest colormap color
-    CMAP1 = copy(plt.get_cmap('plasma'))
 
     plt.ioff()
     
@@ -67,9 +86,14 @@ def plotMod(particle_group, key1='t', key2='p',
         n = len(particle_group)
         bins = int(np.sqrt(n/4) )
 
+    def get_array_and_unit(key):
+        if z_from_t and key == 'z':
+            return -299792458.0 * particle_group['delta_t'], 'm'
+        return particle_group[key], particle_group.units(key).unitSymbol
+
     # Scale to nice units and get the factor, unit prefix
-    x = particle_group[key1]
-    y = particle_group[key2]
+    x, u1 = get_array_and_unit(key1)
+    y, u2 = get_array_and_unit(key2)
     
     # Form nice arrays
     x, f1, p1, xmin, xmax = pmd_beamphysics.units.plottable_array(x, nice=nice, lim=xlim)
@@ -77,23 +101,24 @@ def plotMod(particle_group, key1='t', key2='p',
     
     w = particle_group['weight']
     
-    u1 = particle_group.units(key1).unitSymbol
-    u2 = particle_group.units(key2).unitSymbol
     ux = p1+u1
     uy = p2+u2
     
     labelx = pmd_beamphysics.labels.mathlabel(key1, units=ux, tex=tex)
     labely = pmd_beamphysics.labels.mathlabel(key2, units=uy, tex=tex)
 
-    fig = plt.figure(**kwargs)
-    gs = GridSpec(4,4)
+    if embedded:
+        gs = GridSpecFromSubplotSpec(4, 4, subplot_spec=outer[i], wspace=0.0, hspace=0.0)
+    else:
+        fig = plt.figure(**kwargs)
+        gs = GridSpec(4,4)
     
     ax_joint = fig.add_subplot(gs[1:4,0:3])
-    ax_marg_x = fig.add_subplot(gs[0,0:3])
-    ax_marg_y = fig.add_subplot(gs[1:4,3])
+    ax_marg_x = fig.add_subplot(gs[0,0:3], sharex=ax_joint)
+    ax_marg_y = fig.add_subplot(gs[1:4,3], sharey=ax_joint)
 
     # Set the joint plot background color to match the bottom end of the colormap
-    ax_joint.set_facecolor(CMAP0(0))
+    ax_joint.set_facecolor(CMAP0(0) if background is None else background)
     
     # Plot the hexbin
     ax_joint.hexbin(x, y, C=w, reduce_C_function=np.sum, gridsize=bins, cmap=CMAP0, vmin=1e-20)
@@ -133,6 +158,11 @@ def plotMod(particle_group, key1='t', key2='p',
     if ylim:
         ax_joint.set_ylim(ymin/f2, ymax/f2)     
         ax_marg_y.set_ylim(ymin/f2, ymax/f2)
+
+    # Restore display only when drawing into a caller's figure; otherwise every later figure
+    # in the session would silently stop being shown.
+    if embedded and was_interactive:
+        plt.ion()
     
     return fig
 

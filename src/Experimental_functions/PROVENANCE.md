@@ -52,6 +52,10 @@ Copied from upstream:
 Not copied: `plot.py`, `spec.py`, `example.ipynb`, `README.md`.
 Added by this project: `__init__.py` (original work of this project).
 
+`DATASET` needs `image.py`, which needs `analysis.py`. `mplstyle.py` is not used by the
+other modules and sets matplotlib `rcParams` globally when imported, so `__init__.py`
+does not import it; it is available as an opt-in `import Experimental_functions.mplstyle`.
+
 ## Local modifications
 
 `dataset.py`
@@ -81,6 +85,6 @@ be sent upstream as a pull request.
 ## Use within FACET2-S2E
 
 Only the `DATASET` class is used, and only at a single site:
-`src/FACET2_S2E/simulation/experiment.py`, in `get_tao_from_experiment()`. The
+`src/FACET2_S2E/simulators/bmad/experiment.py`, in `get_tao_from_experiment()`. The
 resulting object is consumed by the lattice-edit functions in the same module,
 which read `dataset._data["scalars"][...]`.

@@ -1,3 +1,7 @@
+# Lattice-only setpoint for the 2024-10-22 IMPACT one-bunch beam, from the 2024-12-09 CSR-on
+# optimization (same quads, phases and sextupole strengths as 2024-10-22_oneBunch_baseline.yml).
+# Sextupole offsets and L0BEnergyOffset fall back to defaults.yml (0); the tracking flags (centerBC14, ...) are omitted.
+
 include: 
 - "setLattice_configs/defaults.yml"
 - "setLattice_configs/bounds.yml"
@@ -11,7 +15,7 @@ QE10441kG : 1.5057761462
 QE10511kG : 7.0138622173
 QE10525kG : -5.3942250594
 
-L0BPhaseSet : -35.0
+L0BPhaseSet : -15.0
 L1PhaseSet : -14.8497817049
 L2PhaseSet : -33.2649586063
 
