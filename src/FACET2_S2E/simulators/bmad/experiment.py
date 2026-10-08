@@ -86,7 +86,7 @@ def get_tao_from_experiment(experiment="", scan_number="", date="", start='L0AFE
     tune_dipoles: if True, the dipole fields are adjusted using DB_FIELD to the corresponding angle and rho from the .tao lattice at some energies:
     Will tune to the DAQ values (it saves energy) if experiment and scan_number are provided, and to the default [125, 335, 4500, 10000] otherwise.
     tune_dipoles_to_125_335_4500_10000_MeV: if True, the dipole magnetic fields are set to [125, 335, 4500, 10000] even if the DAQ is provided.
-    If False, the simulation is the same as Nathan's, where the dipole strength changes with the lattice energy.
+    If False, the dipole fields are not adjusted and follow the lattice energy, as with initializeTao() and trackBeam().
     '''
     if filepath is None:
         # src/FACET2_S2E/simulators/bmad/experiment.py -> repository root (same rule as initializeTao)

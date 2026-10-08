@@ -13,7 +13,7 @@ import os
 ## Modify the bunch as a whole (sizes, means, chirps, correlations)
 
 def modifyInputBeamSimple(inputBeamFilePath, numMacroParticles = None, timeCenterTF = True):
-    """Prepare an input beam for Tao by optionally downsampling and centering. Almost the same as Nathans', but without Twiss matching.
+    """Prepare an input beam for Tao by optionally downsampling and centering. Like modifyAndSaveInputBeam(), but without Twiss matching.
 
     The beam is drift_to_z(), set z=0, and optionally time-centered.
     If numMacroParticles is provided (and smaller than the beam), the beam is randomly subsampled and weights are adjusted.

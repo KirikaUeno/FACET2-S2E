@@ -25,7 +25,7 @@ filePathGlobal = None
 def initializeTao(
     filePath = None,
 
-    # Nathan-specific implementation
+    # Used with autoLoadActiveFile=True (initializeTao also loads the beam)
     runSetLatticeTF = True,
     setLatticeDefaultsFile = None, 
 
@@ -40,7 +40,7 @@ def initializeTao(
     randomizeFileNames = False,
 
     autoLoadActiveFile = True,
-    # Second implementation
+    # Used with autoLoadActiveFile=False (lattice only; the beam is set separately)
     loadCustomLatticeTF = False,
     latticeFile = None,
 
@@ -92,9 +92,10 @@ def initializeTao(
         Enable or disable transverse wakefields within linac sections
 
     autoLoadActiveFile : bool
-        Choose between Nathan's implementation (with beam loading into activeBeamFile.h5) or the second implementation (with beam treatment separated and more flexibility in collective effects). If True, uses Nathan's implementation. If False, uses the second implementation.
+        If True (default), initializeTao() also prepares the input beam (from inputBeamFilePathSuffix, or from IMPACT-T with runImpactTF), writes it to beams/activeBeamFile.h5 and loads it into Tao; the lattice is set with runSetLatticeTF/setLatticeDefaultsFile and CSR is switched with csrTF, as used by trackBeam().
+        If False, only the lattice (loadCustomLatticeTF/latticeFile) and the collective effects (each one separately, see below) are set up, and the beam is loaded later, e.g. with set_beam() or get_tao_from_experiment().
         
-    # For the second implementation:
+    # For autoLoadActiveFile=False:
 
     loadCustomLatticeTF : bool
         Whether or not to run setLattice(). If False, the unmodified lattice specified by tao.init is loaded
@@ -250,7 +251,7 @@ def initializeTao(
         tao.QPADDefaultsFile = setQPADDefaultsFile
         #tao.activeBeam = activeBeam
     
-    # SECOND IMPLEMENTATION
+    # autoLoadActiveFile=False: lattice and collective effects only; the beam is set separately
     else:
         # Lattice
         if loadCustomLatticeTF:
@@ -260,7 +261,7 @@ def initializeTao(
                 importedSettings = loadConfig(latticeFile, filePathGlobal)
                 setLattice(tao, filePath=filePath, **importedSettings)
             else:
-                setLattice(tao, verbose = True) #Set lattice to Nathan's latest default config
+                setLattice(tao, verbose = True) # settings from setLattice_configs/defaults.yml
             
         else:
             if verbose:
