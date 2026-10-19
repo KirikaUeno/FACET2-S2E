@@ -18,7 +18,7 @@ from ...beam.generation import make_simple_bunch_standalone
 from ...beam.manipulation import edit_bunch_parameters
 import re
 from .lattice.linac import setLinacPhase, setLinacGradientAuto, matchStringWrapper, getEnergyChangeFromElements
-from .lattice.set_lattice import setQuadkG, setSextkG
+from .lattice.set_lattice import setQuadkG, setSextkG, fixMagnetFields
 from .core import initializeTao
 from .energy import save_dipoles, treat_dipoles
 from .runs import set_beam, twiss_match_beam, golden_twiss_targets, GOLDEN_TWISS_PR10571, l2_virtual_match, edit_energy_based_on_beam_all, run_initialized_sim_edit_bunch_energy, run_initialized_sim_edit_lattice_energy_for_dipoles, run_initialized_sim
@@ -47,7 +47,7 @@ def get_tao_from_experiment(experiment="", scan_number="", date="", start='L0AFE
                             lattice='setLattice_configs/2024-12-09_oneBunch_CSR-on_optimized.yml', moments=[None,None,None,None,None,None], means=[0,0,0,0,None], charge=1.6e-9, sr_wakes_on=False, lr_wakes_on=False,
                             desired_beam_energies_for_the_feedback=None, desired_P0Cs_MeV=[None,None,None,None], grid_size=[32,32,32], lsc_method="slice", csr_method="1_dim", n_bin=32,
                             edited_bunch_energy_at_checkpoints_MeV=[None, None, None, None], beam_edits=True, twiss_match="auto", l0a_energy_MeV="quads", l2_match=False,
-                            daq_sextupole_offsets=True):
+                            daq_sextupole_offsets=True, keep_magnet_fields=True):
     '''
     experiment: "BEAMPHYS" is an example.
     scan_number: DAQ scan number. "14438" is an example.
@@ -128,6 +128,12 @@ def get_tao_from_experiment(experiment="", scan_number="", date="", start='L0AFE
     (Q11401-Q12401) are refit so that the golden injector Twiss arrive in L2 (LI13BEG) with the design Twiss.
     The DAQ L2 matching quads (QM11358/62/93) alone leave BMAG ~4.6/5.4 in L2 for BEAMPHYS 14438. A dict is passed
     to l2_virtual_match as keyword arguments. The result is stored in tao.l2_match_result.
+
+    keep_magnet_fields: if True (default), the fields of the quads, sextupoles and correctors are fixed (Bmad
+    field_master = T, see fixMagnetFields) once they are set (DAQ readbacks or lattice config, then l2_match), so that the
+    later energy edits (save_dipoles, the feedback on beam) do not change them. With False, Bmad keeps K1/K2 instead,
+    and the fields scale with the change of P0C: after the feedback with wakes P0C is ~1% above the beam energy at BC14
+    and BC20 (the reference particle feels no wakes), so every magnet there acts ~1% too strong on the beam.
     '''
     if filepath is None:
         # src/FACET2_S2E/simulators/bmad/experiment.py -> repository root (same rule as initializeTao)
@@ -160,6 +166,9 @@ def get_tao_from_experiment(experiment="", scan_number="", date="", start='L0AFE
 
     if l2_match:
         tao.l2_match_result = l2_virtual_match(tao, verbose=verbose, **(l2_match if isinstance(l2_match, dict) else {}))
+
+    if keep_magnet_fields:
+        fixMagnetFields(tao)
 
     fields = save_dipoles(tao, dipoleEnergies_MeV)
 

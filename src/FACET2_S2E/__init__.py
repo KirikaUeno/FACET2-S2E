@@ -72,7 +72,7 @@ from .simulators.bmad.scans import (
 
 from .simulators.bmad.lattice.set_lattice import (
     setLattice,
-    getBendkG, getQuadkG, getSextkG,
+    getBendkG, getQuadkG, getSextkG, fixMagnetFields,
     setBendkG, setQuadkG, setSextkG,
     setXOffset, setYOffset,
     getKickerkG, setKickerkG,
@@ -240,7 +240,7 @@ __all__ = [
     
     # Lattice element control
     'setLattice',
-    'getBendkG', 'getQuadkG', 'getSextkG',
+    'getBendkG', 'getQuadkG', 'getSextkG', 'fixMagnetFields',
     'setBendkG', 'setQuadkG', 'setSextkG',
     'setXOffset', 'setYOffset',
     'getKickerkG', 'setKickerkG',

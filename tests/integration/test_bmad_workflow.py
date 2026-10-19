@@ -182,6 +182,26 @@ class TestMagnets:
             assert tao.ele_gen_attribs(ele)["X_OFFSET"] == pytest.approx(dx), ele
             assert tao.ele_gen_attribs(ele)["Y_OFFSET"] == pytest.approx(-dx), ele
 
+    def test_fix_magnet_fields(self, tao):
+        """After fixMagnetFields an energy change keeps the fields (K follows P0C); by default Bmad keeps K instead."""
+        def state():
+            return (qs.getQuadkG(tao, "Q1FF"), qs.getSextkG(tao, "S1EL"), tao.ele_gen_attribs("Q1FF")["K1"], P0C(tao, "Q1FF"))
+        qs.tune_to_P0Cs(tao, desired_P0Cs_MeV=[125, 335, 4500, 10000])
+        b0, s0, k0, p0 = state()
+        qs.tune_to_P0Cs(tao, desired_P0Cs_MeV=[125, 335, 4500, 9800])
+        b1, _, k1, p1 = state()
+        assert k1 == pytest.approx(k0, rel=1e-9) and b1 == pytest.approx(b0*p1/p0, rel=1e-9)   # default: K kept
+        qs.tune_to_P0Cs(tao, desired_P0Cs_MeV=[125, 335, 4500, 10000])
+        qs.fixMagnetFields(tao)
+        b0, s0, k0, p0 = state()
+        qs.tune_to_P0Cs(tao, desired_P0Cs_MeV=[125, 335, 4500, 9800])
+        b2, s2, k2, p2 = state()
+        assert p2/p0 == pytest.approx(0.98, rel=1e-3)
+        assert b2 == pytest.approx(b0, rel=1e-9) and s2 == pytest.approx(s0, rel=1e-9)
+        assert k2 == pytest.approx(k0*p0/p2, rel=1e-9)
+        tao.cmd("set ele Q1FF K1 = -0.5")          # K can still be set: the field follows
+        assert qs.getQuadkG(tao, "Q1FF") == pytest.approx(b2*(-0.5)/k2, rel=1e-9)
+
     def test_collective_effect_settings(self, tao):
         qs.applyBMADCollectiveEffectSettings(tao, csrTF=True, lscTF=False, bmad_grid_size=[16, 16, 32],
                                              sr_wakes_on=True, lr_wakes_on=False, verbose=False, n_bin=40)
@@ -412,9 +432,12 @@ class TestGetTaoFromExperiment:
         kw = dict(start="L0AFEND", filepath=s2e_root, file_ext=path, energy=-1, run=False, sr_wakes_on=False, lr_wakes_on=False)
         tao = qs.get_tao_from_experiment(**kw)
         p0c_l0a = P0C(tao, "L0AFEND")
+        fields = {q: qs.getQuadkG(tao, q) for q in ("QM11358", "Q14701", "Q1FF")}
         desired = [124e6, 330e6, 4400e6, 9900e6]
         tao = qs.get_tao_from_experiment(**kw, energy_edit_on_beam=True, desired_beam_energies_for_the_feedback=desired)
         assert P0C(tao, "L0AFEND") == pytest.approx(p0c_l0a, rel=1e-12)
+        for q, b in fields.items():     # keep_magnet_fields: the feedback changes P0C, not the magnet fields
+            assert qs.getQuadkG(tao, q) == pytest.approx(b, rel=1e-9), q
         assert np.mean(ParticleGroup(f"{s2e_root}/temp_beam/temp.h5").pz) == pytest.approx(66e6, rel=1e-3)
         qs.run_initialized_sim(tao, "L0AFEND", "ENDL3F_2", locations=None)
         for loc, e in zip(("BX0FBEG", "BC11CBEG", "ENDL2F", "ENDL3F_2"), desired):
