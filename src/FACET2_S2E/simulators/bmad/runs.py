@@ -6,10 +6,12 @@ energy retuning (simulation.energy).
 Moved from simulationFunctions.py.
 """
 
+import os
+
 import numpy as np
 from pmd_beamphysics import ParticleGroup
 from pmd_beamphysics.statistics import twiss_calc
-from scipy.optimize import least_squares
+from scipy.optimize import least_squares, minimize
 
 from ...beam.analysis import calcBMAG
 from ...beam.manipulation import modifyInputBeamSimple, edit_bunch_parameters_from_PG, edit_bunch_parameters
@@ -115,6 +117,84 @@ def l2_virtual_match(tao, quads=L2_MATCH_QUADS, target="LI13BEG", golden=GOLDEN_
               f"K1 factors { {q: round(f, 3) for q, f in result['factors'].items()} }")
     if max(after) > 1.1:
         print(f"Warning: L2 virtual match reached only BMAG {after[0]:.2f}/{after[1]:.2f} at {target}")
+    return result
+
+
+# W-chicane sextupoles with horizontal movers (the S3 pair has none)
+BC20_TUNE_SEXTUPOLES = ("S1EL", "S2EL", "S2ER", "S1ER")
+
+
+def tune_bc20_sextupole_offsets(tao, beam=None, max_offset=2e-3, start="BEGBC20", target="ENDBC20",
+                                sextupoles=BC20_TUNE_SEXTUPOLES, n_particles=2000, seed=0, verbose=False):
+    '''
+    Fit the x offsets of the W-chicane sextupoles (within +-max_offset of zero) to minimize the projected normalized
+    emittances at `target` (eps_nx^2 + eps_ny^2), as the operators tune the dispersion after BC20 with the sextupole
+    movers. The mover zero is unknown, so the offsets are a tuning knob; operators move them by up to ~2 mm.
+    Offsets feed down quadrupole and dipole fields, so they cancel the residual dispersion of the chicane for the
+    actual beam (energy spread, chirp, and the beam energy relative to P0C).
+
+    beam: ParticleGroup at `start`; default: the beam that Tao saved at `start` in the last tracking.
+    A random subset of n_particles is tracked from `start` to `target` without collective effects or ISR for each
+    trial offset set (L-BFGS-B from zero offsets, so the fit finds the smallest offsets that work).
+    The beam_init, track range, track type and bmad_com settings of Tao are restored afterwards; the fitted offsets
+    are left set.
+    Returns {"x_offsets_m": {name: offset}, "eps_n_before": (x, y), "eps_n_after": (x, y), "n_evaluations": n}.
+    '''
+    P = beam if beam is not None else getBeamAtElement(tao, start, tToZ=False)
+    P = P[P.status == 1]
+    if len(P) > n_particles:
+        P = P[np.sort(np.random.default_rng(seed).choice(len(P), n_particles, replace=False))]
+    gamma = P["mean_gamma"]
+    beam_file = os.path.join(tao.filePathGlobal, "temp_beam", f"_bc20_tune_{os.getpid()}.h5")
+    P.write(beam_file)
+
+    com = tao.bmad_com()
+    saved_com = {k: com[k] for k in ("csr_and_space_charge_on", "sr_wakes_on", "lr_wakes_on", "radiation_fluctuations_on")}
+    saved_beam_file = tao.beam_init(0)["position_file"]
+    saved_range = {k: tao.beam(0)[k] for k in ("track_start", "track_end")}
+    tf = lambda b: "T" if b else "F"
+    try:
+        for k in saved_com:
+            tao.cmd(f"set bmad_com {k} = F")
+        tao.cmd(f"set beam_init position_file = {beam_file}")
+        tao.cmd("reinit beam")
+        tao.cmd(f"set beam_init track_start = {start}")
+        tao.cmd(f"set beam_init track_end = {target}")
+        tao.cmd("set global track_type = beam")
+        n_eval = [0]
+
+        def emittances(dx):
+            tao.cmd("set global lattice_calc_on = F")      # one retracking per trial, not one per magnet
+            for name, x in zip(sextupoles, dx):
+                tao.cmd(f"set ele {name} X_OFFSET = {x}")
+            tao.cmd("set global lattice_calc_on = T")
+            n_eval[0] += 1
+            alive = np.array(tao.bunch1(target, "state")) == 1
+            c = {k: np.array(tao.bunch1(target, k))[alive] for k in ("x", "px", "y", "py", "pz")}
+            emit = lambda u, pu: np.sqrt(np.linalg.det(np.cov(u, pu/(1 + c["pz"]))))
+            return gamma*emit(c["x"], c["px"]), gamma*emit(c["y"], c["py"])
+
+        before = emittances(np.zeros(len(sextupoles)))
+        fit = minimize(lambda dx: 1e12*sum(e**2 for e in emittances(dx)), np.zeros(len(sextupoles)), method="L-BFGS-B",
+                       bounds=[(-max_offset, max_offset)]*len(sextupoles), options={"eps": 2e-6, "maxiter": 60})
+        after = emittances(fit.x)
+    finally:
+        tao.cmd("set global track_type = single")
+        for k, v in saved_com.items():
+            tao.cmd(f"set bmad_com {k} = {tf(v)}")
+        tao.cmd(f"set beam_init position_file = {saved_beam_file}")
+        tao.cmd(f"set beam_init track_start = {saved_range['track_start']}")
+        tao.cmd(f"set beam_init track_end = {saved_range['track_end'] or 'END'}")
+        if os.path.isfile(beam_file):
+            os.remove(beam_file)
+    result = {"x_offsets_m": {name: float(x) for name, x in zip(sextupoles, fit.x)},
+              "eps_n_before": tuple(map(float, before)), "eps_n_after": tuple(map(float, after)), "n_evaluations": n_eval[0]}
+    if verbose:
+        print(f"BC20 sextupole tuning (+-{max_offset*1e3:.1f} mm): eps_nx/ny at {target} "
+              f"{before[0]*1e6:.1f}/{before[1]*1e6:.1f} -> {after[0]*1e6:.1f}/{after[1]*1e6:.1f} um; "
+              f"x offsets [mm] { {k: round(v*1e3, 3) for k, v in result['x_offsets_m'].items()} }")
+    if any(abs(x) > 0.999*max_offset for x in fit.x):
+        print(f"Note: BC20 sextupole tuning reached the {max_offset*1e3:.1f} mm limit")
     return result
 
 

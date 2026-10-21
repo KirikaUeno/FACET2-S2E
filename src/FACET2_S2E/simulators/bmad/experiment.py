@@ -19,9 +19,9 @@ from ...beam.manipulation import edit_bunch_parameters
 import re
 from .lattice.linac import setLinacPhase, setLinacGradientAuto, matchStringWrapper, getEnergyChangeFromElements
 from .lattice.set_lattice import setQuadkG, setSextkG, fixMagnetFields
-from .core import initializeTao
+from .core import initializeTao, trackBeam
 from .energy import save_dipoles, treat_dipoles
-from .runs import set_beam, twiss_match_beam, golden_twiss_targets, GOLDEN_TWISS_PR10571, l2_virtual_match, edit_energy_based_on_beam_all, run_initialized_sim_edit_bunch_energy, run_initialized_sim_edit_lattice_energy_for_dipoles, run_initialized_sim
+from .runs import set_beam, tune_bc20_sextupole_offsets, twiss_match_beam, golden_twiss_targets, GOLDEN_TWISS_PR10571, l2_virtual_match, edit_energy_based_on_beam_all, run_initialized_sim_edit_bunch_energy, run_initialized_sim_edit_lattice_energy_for_dipoles, run_initialized_sim
 
 
 ## Initialize and run a simulation
@@ -46,8 +46,8 @@ def get_tao_from_experiment(experiment="", scan_number="", date="", start='L0AFE
                             correctors_coef=0, correctors_from_beg=False, run=True, gaussFromExternal=False, edit_only_energy_from_exp=False, energy_edit_on_beam=False, verbose=False,
                             lattice='setLattice_configs/2024-12-09_oneBunch_CSR-on_optimized.yml', moments=[None,None,None,None,None,None], means=[0,0,0,0,None], charge=1.6e-9, sr_wakes_on=False, lr_wakes_on=False,
                             desired_beam_energies_for_the_feedback=None, desired_P0Cs_MeV=[None,None,None,None], grid_size=[32,32,32], lsc_method="slice", csr_method="1_dim", n_bin=32,
-                            edited_bunch_energy_at_checkpoints_MeV=[None, None, None, None], beam_edits=True, twiss_match="auto", l0a_energy_MeV="quads", l2_match=False,
-                            daq_sextupole_offsets=True, keep_magnet_fields=True):
+                            edited_bunch_energy_at_checkpoints_MeV=[None, None, None, None], beam_edits=True, twiss_match="auto", l0a_energy_MeV="quads", l2_match="auto",
+                            daq_sextupole_offsets=True, keep_magnet_fields=True, bc20_sextupole_tune="auto"):
     '''
     experiment: "BEAMPHYS" is an example.
     scan_number: DAQ scan number. "14438" is an example.
@@ -124,10 +124,20 @@ def get_tao_from_experiment(experiment="", scan_number="", date="", start='L0AFE
     daq_sextupole_offsets: apply the W-chicane sextupole mover readbacks (SIOC:SYS1:ML00:AO5x2) as sextupole offsets.
     False: sextupoles centred (strengths still from the DAQ).
 
-    l2_match: if True, run l2_virtual_match after the DAQ settings are loaded: the quads that the DAQ does not record
+    l2_match: "auto" (default): True if the DAQ magnets are loaded (experiment and scan_number given, and not
+    edit_only_energy_from_exp), False otherwise.
+    If True, run l2_virtual_match after the DAQ settings are loaded: the quads that the DAQ does not record
     (Q11401-Q12401) are refit so that the golden injector Twiss arrive in L2 (LI13BEG) with the design Twiss.
     The DAQ L2 matching quads (QM11358/62/93) alone leave BMAG ~4.6/5.4 in L2 for BEAMPHYS 14438. A dict is passed
     to l2_virtual_match as keyword arguments. The result is stored in tao.l2_match_result.
+
+    bc20_sextupole_tune: "auto" (default): True if the DAQ magnets are loaded and energy_edit_on_beam is True (the
+    feedback gives a tracked beam), and "start" is upstream of BEGBC20; False otherwise.
+    If True, the beam is tracked from "start" to BEGBC20 with the settings of this call (e.g. wakes), and the x offsets
+    of the W-chicane sextupoles are fitted within +-2 mm to minimize the projected emittances after BC20
+    (tune_bc20_sextupole_offsets), as the operators tune the dispersion with the movers. The fitted offsets replace
+    the DAQ mover readbacks (daq_sextupole_offsets). A dict is passed to tune_bc20_sextupole_offsets as keyword
+    arguments (e.g. {"max_offset": 4e-3}). The result is stored in tao.bc20_tune_result.
 
     keep_magnet_fields: if True (default), the fields of the quads, sextupoles and correctors are fixed (Bmad
     field_master = T, see fixMagnetFields) once they are set (DAQ readbacks or lattice config, then l2_match), so that the
@@ -164,6 +174,9 @@ def get_tao_from_experiment(experiment="", scan_number="", date="", start='L0AFE
     if tune_dipoles_to_125_335_4500_10000_MeV:
         dipoleEnergies_MeV = [125, 335, 4500, 10000]
 
+    daq_magnets_loaded = experiment != "" and scan_number != "" and not edit_only_energy_from_exp
+    if isinstance(l2_match, str) and l2_match == "auto":
+        l2_match = daq_magnets_loaded
     if l2_match:
         tao.l2_match_result = l2_virtual_match(tao, verbose=verbose, **(l2_match if isinstance(l2_match, dict) else {}))
 
@@ -210,6 +223,13 @@ def get_tao_from_experiment(experiment="", scan_number="", date="", start='L0AFE
 
     if tune_dipoles:
         tao = treat_dipoles(tao, fields)
+
+    if isinstance(bc20_sextupole_tune, str) and bc20_sextupole_tune == "auto":
+        bc20_sextupole_tune = daq_magnets_loaded and energy_edit_on_beam and _is_upstream(tao, start, "BEGBC20")
+    if bc20_sextupole_tune:
+        trackBeam(tao, filepath=filepath, trackStart=start, trackEnd="BEGBC20", autoLoadActiveFile=False)
+        tao.bc20_tune_result = tune_bc20_sextupole_offsets(
+            tao, verbose=verbose, **(bc20_sextupole_tune if isinstance(bc20_sextupole_tune, dict) else {}))
 
     # run the sim and save the bunch
     if run:

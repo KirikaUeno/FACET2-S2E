@@ -387,6 +387,25 @@ class TestL2VirtualMatch:
             assert 0.5 <= f <= 2.0
 
 
+class TestBC20SextupoleTune:
+    @pytest.mark.slow
+    def test_tune_reduces_emittance_and_restores_state(self, tao, s2e_root):
+        """A beam 1% below P0C with a 1% energy spread leaves dispersion after the W chicane; the sextupole x offsets
+        (within +-2 mm) cancel it. Tao's beam settings are restored afterwards."""
+        np.random.seed(1)
+        path = f"{s2e_root}/temp_beam/bc20_tune"
+        p = 0.99*P0C(tao, "BEGBC20")
+        qs.make_simple_bunch_standalone(N=400, meanPzMeV=p*1e-6, moments=[30e-6, 3e-6, 30e-6, 3e-6, 50e-6, 0.01*p],
+                                        charge=1.6e-9, save_path=path)
+        beam_file, track_type = tao.beam_init(0)["position_file"], tao.tao_global()["track_type"]
+        result = qs.tune_bc20_sextupole_offsets(tao, beam=ParticleGroup(path + ".h5"), n_particles=400)
+        assert result["eps_n_after"][0] < 0.7*result["eps_n_before"][0]    # 28.9 -> 17.3 um for this beam
+        for name, dx in result["x_offsets_m"].items():
+            assert abs(dx) <= 2e-3 + 1e-12
+            assert tao.ele_gen_attribs(name)["X_OFFSET"] == pytest.approx(dx)
+        assert tao.beam_init(0)["position_file"] == beam_file and tao.tao_global()["track_type"] == track_type
+
+
 class TestGetTaoFromExperiment:
     @pytest.mark.slow
     def test_generated_beam(self, s2e_root):
@@ -417,11 +436,14 @@ class TestGetTaoFromExperiment:
                                              N_in_simple_bunch=100, moments=[1e-4]*6)
             assert qs.getQuadkG(tao, "QA10361") == pytest.approx(q_before + 0.1, abs=1e-6)
             assert 360*tao.ele_gen_attribs("L0BF")["PHI0"] == pytest.approx(-15.0)
+            assert hasattr(tao, "l2_match_result")          # l2_match="auto": DAQ magnets loaded
+            assert not hasattr(tao, "bc20_tune_result")     # bc20_sextupole_tune="auto": no feedback, no tracked beam
             tao = qs.get_tao_from_experiment(experiment="TEST", scan_number="1", filepath=s2e_root, run=False, daq_root="/daq",
                                              N_in_simple_bunch=100, moments=[1e-4]*6, edit_only_energy_from_exp=True)
             # quads not loaded: K1 is kept (the kG readback follows the edited energy)
             assert tao.ele_gen_attribs("QA10361")["K1"] == pytest.approx(k1_before, rel=1e-9)
             assert 360*tao.ele_gen_attribs("L0BF")["PHI0"] == pytest.approx(-15.0)
+            assert not hasattr(tao, "l2_match_result")      # magnets not loaded
 
     @pytest.mark.slow
     def test_feedback_keeps_beam_energy_and_l0a(self, s2e_root):
