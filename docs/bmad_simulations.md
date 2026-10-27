@@ -79,4 +79,4 @@ With `run=False`, you can modify `tao` first and then track with:
 
 - **Scratch files are overwritten.** To save disk space, intermediate beams are written to `<repo>/temp_beam/` under fixed names (`temp.h5`, `temp_e.h5`, `<ELEMENT>temp.h5`) and overwritten on every run. Copy any result you want to keep, and don't run several simulations from the same repository at the same time.
 - **Repository path.** With an editable install (`pip install -e .`), `filepath` can be omitted; in a notebook, `str(Path(qs.__file__).resolve().parents[2])` gives the same path. With a regular `pip install .`, always pass it.
-- **CSR and space charge apply to every element**, not only the bunch compressors. 3D methods (`steady_state_3d`, `fft_3d`) are slow: test with few particles first and run long simulations through Slurm, not on a login node.
+- **CSR and space charge apply to every element**, not only the bunch compressors. 3D methods (`steady_state_3d`, `fft_3d`) are slow: test with few particles first and run long simulations through Slurm, not on a login node. `steady_state_3d` needs Bmad 20260828 or newer (see [installation.md](installation.md)).
